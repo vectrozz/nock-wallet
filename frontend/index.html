@@ -14,6 +14,9 @@
             <button id="updateBalanceBtn" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg font-semibold transition-colors">
                 🔄 Update Balance
             </button>
+            <button id="sendTxBtn" class="bg-yellow-600 hover:bg-yellow-700 px-6 py-2 rounded-lg font-semibold transition-colors">
+                💸 Send Transaction
+            </button>
             <button id="exportKeysBtn" class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg font-semibold transition-colors">
                 📤 Export Keys
             </button>
@@ -29,6 +32,67 @@
             <p class="text-lg text-gray-400">Loading balance, please wait...</p>
         </div>
 
+        <!-- Send Transaction Modal -->
+        <div id="sendTxModal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+            <div class="bg-gray-800 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Send Transaction</h2>
+                    <button id="closeSendTxModal" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+                
+                <!-- Step 1: Create Transaction -->
+                <div id="createTxStep" class="space-y-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Recipient Public Key</label>
+                        <input type="text" id="recipientInput" class="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" placeholder="Enter recipient public key">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Amount (Nock)</label>
+                        <input type="number" step="0.0001" id="amountInput" class="w-full bg-gray-700 text-white px-4 py-2 rounded-lg" placeholder="0.0000">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">Fee (Nick) - Recommended: 10</label>
+                        <input type="number" id="feeInput" value="10" class="w-full bg-gray-700 text-white px-4 py-2 rounded-lg">
+                    </div>
+                    <button id="createTxBtn" class="w-full bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold transition-colors">
+                        Create Transaction
+                    </button>
+                </div>
+
+                <!-- Step 2: Confirm Transaction -->
+                <div id="confirmTxStep" class="hidden space-y-4">
+                    <div class="bg-gray-900 p-4 rounded-lg">
+                        <h3 class="text-lg font-bold mb-2">Transaction Details</h3>
+                        <pre id="txDetails" class="text-sm text-gray-300 whitespace-pre-wrap"></pre>
+                    </div>
+                    <div class="flex gap-4">
+                        <button id="backToCreateBtn" class="flex-1 bg-gray-600 hover:bg-gray-700 px-6 py-3 rounded-lg font-semibold transition-colors">
+                            ← Back
+                        </button>
+                        <button id="confirmTxBtn" class="flex-1 bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-semibold transition-colors">
+                            Sign & Send
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 3: Processing -->
+                <div id="processingTxStep" class="hidden flex flex-col items-center py-8">
+                    <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-yellow-500 mb-4"></div>
+                    <p class="text-lg text-gray-400">Processing transaction...</p>
+                </div>
+
+                <!-- Step 4: Success -->
+                <div id="successTxStep" class="hidden text-center py-8">
+                    <div class="text-6xl mb-4">✅</div>
+                    <h3 class="text-2xl font-bold mb-2">Transaction Sent!</h3>
+                    <p class="text-gray-400">Your transaction has been broadcast to the network.</p>
+                    <button id="closeTxSuccessBtn" class="mt-6 bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-lg font-semibold transition-colors">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Balance Display -->
         <div id="balanceDisplay" class="hidden w-full max-w-4xl">
             <div id="errorDisplay" class="bg-red-800 p-4 rounded-lg mb-4 hidden"></div>
@@ -41,13 +105,18 @@
                     </div>
                     <div>
                         <p class="text-gray-400 text-sm">Total Assets</p>
-                        <p id="totalAssets" class="text-3xl font-bold text-green-400">0</p>
+                        <div id="totalAssets"></div>
                     </div>
                 </div>
             </div>
 
             <div>
-                <h2 class="text-2xl font-bold mb-4">Notes Details</h2>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Notes Details</h2>
+                    <button id="sendSelectedBtn" class="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        💸 Send Selected
+                    </button>
+                </div>
                 <div id="notesList" class="space-y-2"></div>
             </div>
         </div>

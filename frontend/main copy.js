@@ -24,10 +24,6 @@ let currentTransactionName = null
 let allNotes = []
 let selectedNotes = new Set()
 
-// Sorting state
-let sortBy = 'block_height' // 'block_height' or 'assets'
-let sortOrder = 'desc' // 'asc' or 'desc'
-
 // Convert Nick to Nock
 function nickToNock(nick) {
   return (nick / 65536).toFixed(4)
@@ -71,8 +67,12 @@ async function updateBalance() {
       allNotes = data.notes
       selectedNotes.clear()
       
-      // Render notes with current sorting
-      renderNotes()
+      // Clear and populate notes list
+      notesList.innerHTML = ''
+      data.notes.forEach((note, index) => {
+        const noteItem = createNoteItem(note, index)
+        notesList.appendChild(noteItem)
+      })
       
       updateSendSelectedButton()
     }
@@ -81,86 +81,6 @@ async function updateBalance() {
     loadingDisplay.classList.add('hidden')
     alert('Error: ' + error.message)
   }
-}
-
-// Sort notes based on current sort settings
-function sortNotes(notes) {
-  const sorted = [...notes].sort((a, b) => {
-    let comparison = 0
-    
-    if (sortBy === 'block_height') {
-      comparison = a.block_height - b.block_height
-    } else if (sortBy === 'assets') {
-      comparison = a.assets - b.assets
-    }
-    
-    return sortOrder === 'asc' ? comparison : -comparison
-  })
-  
-  return sorted
-}
-
-// Render notes list
-function renderNotes() {
-  notesList.innerHTML = ''
-  
-  // Add sort controls header
-  const sortHeader = document.createElement('div')
-  sortHeader.className = 'bg-gray-700 rounded-lg p-3 mb-3 flex items-center justify-between'
-  sortHeader.innerHTML = `
-    <div class="text-sm text-gray-300 font-semibold">Sort by:</div>
-    <div class="flex gap-4">
-      <button id="sortByBlock" class="flex items-center gap-2 px-3 py-1 rounded transition-colors ${sortBy === 'block_height' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}">
-        <span>Block Height</span>
-        <svg class="w-4 h-4 ${sortBy === 'block_height' && sortOrder === 'asc' ? 'rotate-180' : ''} transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-        </svg>
-      </button>
-      <button id="sortByAmount" class="flex items-center gap-2 px-3 py-1 rounded transition-colors ${sortBy === 'assets' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}">
-        <span>Amount</span>
-        <svg class="w-4 h-4 ${sortBy === 'assets' && sortOrder === 'asc' ? 'rotate-180' : ''} transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-        </svg>
-      </button>
-    </div>
-  `
-  notesList.appendChild(sortHeader)
-  
-  // Add event listeners to sort buttons
-  document.getElementById('sortByBlock').addEventListener('click', () => {
-    if (sortBy === 'block_height') {
-      sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'
-    } else {
-      sortBy = 'block_height'
-      sortOrder = 'desc'
-    }
-    renderNotes()
-  })
-  
-  document.getElementById('sortByAmount').addEventListener('click', () => {
-    if (sortBy === 'assets') {
-      sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'
-    } else {
-      sortBy = 'assets'
-      sortOrder = 'desc'
-    }
-    renderNotes()
-  })
-  
-  // Sort and render notes
-  const sortedNotes = sortNotes(allNotes)
-  sortedNotes.forEach((note, originalIndex) => {
-    // Find original index in allNotes array
-    const index = allNotes.findIndex(n => n.name === note.name)
-    const noteItem = createNoteItem(note, index)
-    notesList.appendChild(noteItem)
-    
-    // Restore checkbox state
-    const checkbox = document.getElementById(`checkbox-${index}`)
-    if (checkbox && selectedNotes.has(index)) {
-      checkbox.checked = true
-    }
-  })
 }
 
 // Update Send Selected Button state
