@@ -32,19 +32,74 @@ nock-dev-wallet/
 
 - **Python 3.8+**
 - **Node.js 16+** and npm
+- **Rust and Cargo** (for building nockchain-wallet)
 - **nockchain-wallet CLI** installed and configured
 - Git
 
-## 🚀 Installation
-
-### 1. Clone the repository
+### System Dependencies (Debian/Ubuntu)
 
 ```bash
+sudo apt update
+sudo apt install clang llvm-dev libclang-dev make protobuf-compiler
+```
+
+## 🚀 Installation
+
+### Step 1: Install Rust
+
+```bash
+# Install rustup (Rust toolchain installer)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Follow the on-screen instructions, then:
+source $HOME/.cargo/env
+```
+
+### Step 2: Install nockchain-wallet CLI
+
+```bash
+# Clone the Nockchain repository
+git clone https://github.com/zorp-corp/nockchain.git
+cd nockchain
+
+# Copy the example environment file
+cp .env_example .env
+
+# Install hoonc (Hoon compiler)
+make install-hoonc
+export PATH="$HOME/.cargo/bin:$PATH"
+
+# Install nockchain-wallet
+make install-nockchain-wallet
+export PATH="$HOME/.cargo/bin:$PATH"
+
+# Verify installation
+nockchain-wallet --help
+```
+
+**Important**: Add this line to your `~/.bashrc` or `~/.zshrc` to make the wallet permanently available:
+
+```bash
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+Then reload your shell:
+```bash
+source ~/.bashrc  # or source ~/.zshrc
+```
+
+### Step 3: Clone this repository
+
+```bash
+# Navigate back to your projects directory
+cd ~  # or wherever you keep your projects
+
+# Clone the wallet web interface
 git clone https://github.com/vectrozz/nock-wallet.git
 cd nock-wallet
 ```
 
-### 2. Backend Setup
+### Step 4: Backend Setup
 
 ```bash
 # Navigate to backend directory
@@ -59,7 +114,7 @@ source nock-env/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Create .env file (optional)
+# Create .env file (optional - uses defaults if not present)
 cat > .env << EOF
 FLASK_HOST=0.0.0.0
 FLASK_PORT=5007
@@ -72,7 +127,7 @@ python3 app.py
 
 The backend will start on `http://localhost:5007`
 
-### 3. Frontend Setup
+### Step 5: Frontend Setup
 
 Open a **new terminal** (keep the backend running):
 
@@ -83,7 +138,7 @@ cd nock-wallet/frontend
 # Install dependencies
 npm install
 
-# Create .env file (optional)
+# Create .env file (optional - uses defaults if not present)
 cat > .env << EOF
 VITE_API_BASE_URL=http://localhost:5007
 EOF
@@ -146,10 +201,10 @@ FLASK_DEBUG=True            # Debug mode (set to False in production)
 ### Frontend (.env)
 
 ```env
-VITE_API_BASE_URL=http://192.168.1.108:5007  # Backend API URL
+VITE_API_BASE_URL=http://localhost:5007  # Backend API URL
 ```
 
-**Note**: Change the IP address to match your backend server location.
+**Note**: If running on a different machine or network, change `localhost` to your server's IP address (e.g., `http://192.168.1.108:5007`).
 
 ## 📡 API Endpoints
 
@@ -195,25 +250,72 @@ This creates optimized files in the `dist/` directory.
 
 - Never commit `.env` files (they're in `.gitignore`)
 - Keep your `keys.export` files secure and backed up
-- Use strong fees to ensure transaction priority
+- Use appropriate fees to ensure transaction priority (default: 10 nick)
 - Always verify transaction details before signing
+- Store your wallet keys in a secure location
 
 ## 🐛 Troubleshooting
 
+### nockchain-wallet command not found
+```bash
+# Ensure Cargo bin is in your PATH
+export PATH="$HOME/.cargo/bin:$PATH"
+
+# Verify installation
+nockchain-wallet --help
+
+# If still not working, reinstall:
+cd nockchain
+make install-nockchain-wallet
+```
+
 ### Backend won't start
-- Check if port 5007 is already in use
+- Check if port 5007 is already in use: `lsof -i :5007`
 - Verify `nockchain-wallet` CLI is installed and in PATH
-- Check Python virtual environment is activated
+- Check Python virtual environment is activated: `which python3` should show the venv path
 
 ### Frontend can't connect to backend
-- Verify backend is running
+- Verify backend is running (check terminal output)
 - Check `VITE_API_BASE_URL` in frontend `.env`
+- Ensure no firewall is blocking the connection
 - Check CORS settings if accessing from different domain
 
 ### Transaction fails
 - Ensure sufficient balance (amount + fee)
-- Verify recipient address is valid
-- Check `nockchain-wallet` CLI is working: `nockchain-wallet list-notes`
+- Verify recipient address is valid (must be a valid Nockchain public key)
+- Check selected notes have enough funds
+- Verify `nockchain-wallet` CLI is working: `nockchain-wallet list-notes`
+- Check backend logs for detailed error messages
+
+### Build errors for nockchain-wallet
+```bash
+# Ensure all system dependencies are installed
+sudo apt update
+sudo apt install clang llvm-dev libclang-dev make protobuf-compiler
+
+# Update Rust to latest stable
+rustup update stable
+
+# Clean and rebuild
+cd nockchain
+cargo clean
+make install-hoonc
+make install-nockchain-wallet
+```
+
+## 💡 Tips
+
+- **First Time Setup**: After installing nockchain-wallet, initialize it with `nockchain-wallet init`
+- **Network Selection**: Use `--client private` flag if connecting to a private node
+- **Transaction Fees**: Higher fees may result in faster transaction processing
+- **Multiple Notes**: The wallet automatically selects the optimal combination of notes for transactions
+
+## 📚 Additional Resources
+
+- [Nockchain Repository](https://github.com/zorp-corp/nockchain)
+- [Rust Installation Guide](https://rustup.rs/)
+- [Flask Documentation](https://flask.palletsprojects.com/)
+- [Vite Documentation](https://vitejs.dev/)
 
 ## 📝 License
 
@@ -223,10 +325,19 @@ MIT License - See LICENSE file for details
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
 ## 📞 Support
 
-For issues and questions, please open an issue on GitHub.
+For issues and questions:
+- Open an issue on [GitHub](https://github.com/vectrozz/nock-wallet/issues)
+- Check existing issues for solutions
+- Provide detailed error messages and steps to reproduce
 
 ---
 
-**Built with ❤️ for the Nockchain
+**Built with ❤️ for the Nockchain community**
