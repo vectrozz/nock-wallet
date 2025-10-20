@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Nockchain Wallet Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.3.2/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-gray-200 flex flex-col items-center p-8">
+    <h1 class="text-3xl font-bold mb-6">💰 Nockchain Wallet Dashboard</h1>
+
+    <!-- Buttons Section -->
+    <div class="flex gap-4 mb-6">
+        <button onclick="updateBalance()" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg font-semibold">
+            🔄 Update Balance
+        </button>
+        <button onclick="exportKeys()" class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg font-semibold">
+            📤 Export Keys
+        </button>
+        <label for="importFile" class="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-lg font-semibold cursor-pointer">
+            📥 Import Keys
+        </label>
+        <input type="file" id="importFile" class="hidden" accept=".export" onchange="importKeys(this)">
+    </div>
+
+    <!-- Loading Animation -->
+    <div id="loadingDisplay" class="hidden flex flex-col items-center">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mb-4"></div>
+        <p class="text-lg text-gray-400">Loading balance, please wait...</p>
+    </div>
+
+    <!-- Balance Display -->
+    <div id="balanceDisplay" class="hidden">
+        <div id="errorDisplay" class="bg-red-800 p-4 rounded-lg mb-4 hidden"></div>
+        
+        <div id="balanceContent" class="bg-gray-800 p-6 rounded-xl shadow-lg w-96 text-center">
+            <p class="text-lg">Nombre de notes : <span id="notesCount" class="font-semibold">0</span></p>
+            <p class="text-2xl font-bold mt-2">Total : <span id="totalAssets" class="text-green-400">0</span></p>
+        </div>
+
+        <div class="mt-8 w-1/2">
+            <h2 class="text-xl mb-2">Détail des Notes</h2>
+            <ul id="assetsList" class="space-y-1"></ul>
+        </div>
+    </div>
+
+    <script>
+        function updateBalance() {
+            // Show loading animation
+            const loadingDisplay = document.getElementById('loadingDisplay');
+            const balanceDisplay = document.getElementById('balanceDisplay');
+            
+            loadingDisplay.classList.remove('hidden');
+            balanceDisplay.classList.add('hidden');
+            
+            fetch('/api/balance')
+                .then(response => response.json())
+                .then(data => {
+                    // Hide loading animation
+                    loadingDisplay.classList.add('hidden');
+                    
+                    const errorDisplay = document.getElementById('errorDisplay');
+                    const balanceContent = document.getElementById('balanceContent');
+                    
+                    balanceDisplay.classList.remove('hidden');
+                    
+                    if (data.error) {
+                        errorDisplay.textContent = data.error;
+                        errorDisplay.classList.remove('hidden');
+                        balanceContent.classList.add('hidden');
+                    } else {
+                        errorDisplay.classList.add('hidden');
+                        balanceContent.classList.remove('hidden');
+                        
+                        document.getElementById('notesCount').textContent = data.notes_count;
+                        document.getElementById('totalAssets').textContent = data.total_assets;
+                        
+                        const assetsList = document.getElementById('assetsList');
+                        assetsList.innerHTML = '';
+                        data.assets_list.forEach(asset => {
+                            const li = document.createElement('li');
+                            li.className = 'bg-gray-800 rounded-md px-4 py-2';
+                            li.textContent = asset;
+                            assetsList.appendChild(li);
+                        });
+                    }
+                })
+                .catch(error => {
+                    // Hide loading animation on error
+                    loadingDisplay.classList.add('hidden');
+                    alert('Erreur: ' + error);
+                });
+        }
+
+        function exportKeys() {
+            window.location.href = '/api/export-keys';
+        }
+
+        function importKeys(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/api/import-keys', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    updateBalance();
+                } else {
+                    alert('❌ ' + (data.error || 'Erreur inconnue'));
+                }
+            })
+            .catch(error => {
+                alert('❌ Erreur: ' + error);
+            });
+
+            // Reset input
+            input.value = '';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nockchain Wallet</title>
+</head>
+<body class="bg-gray-900 text-gray-200">
+    <div class="flex flex-col items-center p-8">
+        <h1 class="text-3xl font-bold mb-6">💰 Nockchain Wallet</h1>
+
+        <!-- Buttons Section -->
+        <div class="flex gap-4 mb-6">
+            <button id="updateBalanceBtn" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg font-semibold transition-colors">
+                🔄 Update Balance
+            </button>
+            <button id="exportKeysBtn" class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg font-semibold transition-colors">
+                📤 Export Keys
+            </button>
+            <label for="importFile" class="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded-lg font-semibold cursor-pointer transition-colors">
+                📥 Import Keys
+            </label>
+            <input type="file" id="importFile" class="hidden" accept=".export">
+        </div>
+
+        <!-- Loading Animation -->
+        <div id="loadingDisplay" class="hidden flex flex-col items-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mb-4"></div>
+            <p class="text-lg text-gray-400">Loading balance, please wait...</p>
+        </div>
+
+        <!-- Balance Display -->
+        <div id="balanceDisplay" class="hidden w-full max-w-4xl">
+            <div id="errorDisplay" class="bg-red-800 p-4 rounded-lg mb-4 hidden"></div>
+            
+            <div id="balanceContent" class="bg-gray-800 p-6 rounded-xl shadow-lg mb-6">
+                <div class="flex justify-around text-center">
+                    <div>
+                        <p class="text-gray-400 text-sm">Number of Notes</p>
+                        <p id="notesCount" class="text-3xl font-bold text-blue-400">0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400 text-sm">Total Assets</p>
+                        <p id="totalAssets" class="text-3xl font-bold text-green-400">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h2 class="text-2xl font-bold mb-4">Notes Details</h2>
+                <div id="notesList" class="space-y-2"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module" src="/main.js"></script>
+</body>
+</html>
