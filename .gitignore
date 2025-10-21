@@ -23,6 +23,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+backend/txs/
 
 # Virtual environments
 venv/
@@ -41,6 +42,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+package-lock.json
+main-bkp.js
 
 # Vite
 dist/
