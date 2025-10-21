@@ -23,7 +23,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-backend/txs/
+backend/txs/*
 
 # Virtual environments
 venv/
