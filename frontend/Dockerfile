@@ -15,5 +15,5 @@ COPY . .
 # Expose Vite dev server port
 EXPOSE 5173
 
-# Run Vite dev server
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# Run Vite dev server without opening browser
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
