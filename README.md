@@ -5,30 +5,112 @@ A modern web-based wallet interface for Nockchain, built with Flask (backend) an
 ## 🌟 Features
 
 - **Balance Management**: View all your notes with detailed information
+- **Transaction History**: Track all your transactions with status updates (created/signed/sent)
+- **Multi-Signer Support**: Automatically filters history by wallet address
 - **Multi-Note Transactions**: Manually select notes or let the wallet auto-select them
 - **Smart Sorting**: Sort notes by block height or amount (ascending/descending)
 - **Transaction Flow**: Create, sign, and send transactions with confirmation steps
 - **Key Management**: Export and import wallet keys
 - **Real-time Updates**: Automatic balance refresh after transactions
+- **Transaction Verification**: Automatic verification of transaction file creation
 - **Responsive UI**: Clean, modern interface with dark mode
+
+## ⚠️ Important: Docker Deployment Recommended
+
+> **🐳 We STRONGLY recommend using Docker for deployment!**
+>
+> Docker provides:
+> - ✅ Consistent environment across all platforms
+> - ✅ Automatic dependency management
+> - ✅ Isolated wallet service
+> - ✅ Easy updates and maintenance
+> - ✅ Better security isolation
+>
+> **📖 See [DOCKER.md](DOCKER.md) for Docker installation and usage instructions.**
+>
+> Manual installation is possible but requires careful setup of Rust, system dependencies, and environment configuration. Docker handles all of this automatically.
 
 ## 🏗️ Architecture
 
 ```
 nock-dev-wallet/
-├── backend/          # Flask REST API
-│   ├── app.py       # Main application
-│   ├── .env         # Backend configuration
+├── docker-compose.yml    # Docker orchestration
+├── DOCKER.md            # Docker deployment guide
+├── backend/             # Flask REST API
+│   ├── app.py          # Main application
+│   ├── Dockerfile      # Backend container config
+│   ├── txs/            # Transaction files
+│   ├── wallet_history.json  # Transaction history
+│   ├── .env            # Backend configuration
 │   └── requirements.txt
-├── frontend/         # Vite + Vanilla JS
-│   ├── main.js      # Main application logic
-│   ├── index.html   # UI structure
-│   ├── style.css    # Tailwind CSS
-│   └── .env         # Frontend configuration
+├── frontend/            # Vite + Vanilla JS
+│   ├── main.js         # Main application logic
+│   ├── index.html      # UI structure
+│   ├── style.css       # Tailwind CSS
+│   ├── Dockerfile      # Frontend container config
+│   └── .env            # Frontend configuration
+├── wallet/              # Nockchain wallet service
+│   ├── Dockerfile      # Wallet container config
+│   └── nockchain-wallet # Wallet binary
 └── README.md
 ```
 
-## 📋 Prerequisites
+### Service Architecture (Docker)
+
+```
+┌─────────────────┐
+│    Frontend     │  (Port 5173)
+│  Vite + Vanilla │
+└────────┬────────┘
+         │
+         │ HTTP API
+         ▼
+┌─────────────────┐
+│    Backend      │  (Port 5007)
+│  Flask REST API │
+└────────┬────────┘
+         │
+         │ Docker exec
+         ▼
+┌─────────────────┐
+│ Nockchain Wallet│
+│  CLI Service    │
+└─────────────────┘
+         │
+         │ Shared Volumes
+         ▼
+  ┌──────────────┐
+  │ Wallet Data  │
+  │ Transaction  │
+  │   Files      │
+  └──────────────┘
+```
+
+## 🐳 Quick Start with Docker (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/nock-dev-wallet.git
+cd nock-dev-wallet
+
+# Build and start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Access the wallet
+# Frontend: http://localhost:5173
+# Backend API: http://localhost:5007
+```
+
+**That's it!** See [DOCKER.md](DOCKER.md) for detailed Docker instructions.
+
+## 📋 Prerequisites (Manual Installation Only)
+
+> ⚠️ **Manual installation is not recommended. Use Docker instead.**
+
+If you still want to proceed with manual installation:
 
 - **Python 3.8+**
 - **Node.js 16+** and npm
@@ -43,7 +125,9 @@ sudo apt update
 sudo apt install clang llvm-dev libclang-dev make protobuf-compiler
 ```
 
-## 🚀 Installation
+## 🚀 Manual Installation
+
+> ⚠️ **Consider using Docker instead - see [DOCKER.md](DOCKER.md)**
 
 ### Step 1: Install Rust
 
@@ -95,8 +179,8 @@ source ~/.bashrc  # or source ~/.zshrc
 cd ~  # or wherever you keep your projects
 
 # Clone the wallet web interface
-git clone https://github.com/vectrozz/nock-wallet.git
-cd nock-wallet
+git clone https://github.com/yourusername/nock-dev-wallet.git
+cd nock-dev-wallet
 ```
 
 ### Step 4: Backend Setup
@@ -133,7 +217,7 @@ Open a **new terminal** (keep the backend running):
 
 ```bash
 # Navigate to frontend directory
-cd nock-wallet/frontend
+cd nock-dev-wallet/frontend
 
 # Install dependencies
 npm install
@@ -156,6 +240,16 @@ The frontend will start on `http://localhost:5173` (or another port if 5173 is b
 1. Click **"🔄 Update Balance"** to fetch your wallet notes
 2. View total balance and individual notes
 3. Click on any note to expand and see full details
+
+### Transaction History
+
+1. Click the **"📜 Transaction History"** tab
+2. View all transactions from your current wallet
+3. Click any transaction to expand and see full details
+4. Status badges show transaction state:
+   - 🟡 **CREATED**: Transaction created but not signed
+   - 🔵 **SIGNED**: Transaction signed and ready to send
+   - 🟢 **SENT**: Transaction broadcast to network
 
 ### Sorting Notes
 
@@ -196,6 +290,7 @@ Use the sort buttons above the notes list:
 FLASK_HOST=0.0.0.0          # Server host (0.0.0.0 for all interfaces)
 FLASK_PORT=5007             # Server port
 FLASK_DEBUG=True            # Debug mode (set to False in production)
+NOCKCHAIN_WALLET_HOST=      # Set to service name if using Docker
 ```
 
 ### Frontend (.env)
@@ -209,6 +304,8 @@ VITE_API_BASE_URL=http://localhost:5007  # Backend API URL
 ## 📡 API Endpoints
 
 - `GET /api/balance` - Fetch wallet balance and notes
+- `GET /api/wallet-info` - Get wallet public key and mode
+- `GET /api/transaction-history` - Get transaction history (filtered by current wallet)
 - `POST /api/create-transaction` - Create a new transaction
 - `POST /api/sign-transaction` - Sign a transaction
 - `POST /api/send-transaction` - Broadcast transaction to network
@@ -218,7 +315,27 @@ VITE_API_BASE_URL=http://localhost:5007  # Backend API URL
 
 ## 🛠️ Development
 
-### Backend Development
+### Docker Development (Recommended)
+
+```bash
+# Start services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f backend
+docker-compose logs -f frontend
+
+# Rebuild after code changes
+docker-compose build backend
+docker-compose restart backend
+
+# Stop services
+docker-compose down
+```
+
+### Manual Development
+
+#### Backend Development
 
 ```bash
 cd backend
@@ -228,7 +345,7 @@ python3 app.py
 
 The Flask app will auto-reload on code changes when `FLASK_DEBUG=True`.
 
-### Frontend Development
+#### Frontend Development
 
 ```bash
 cd frontend
@@ -253,10 +370,16 @@ This creates optimized files in the `dist/` directory.
 - Use appropriate fees to ensure transaction priority (default: 10 nick)
 - Always verify transaction details before signing
 - Store your wallet keys in a secure location
+- Use Docker volumes for persistent wallet data
+- Transaction history is filtered by wallet address for multi-wallet security
 
 ## 🐛 Troubleshooting
 
-### nockchain-wallet command not found
+### Docker Issues
+
+See [DOCKER.md](DOCKER.md) troubleshooting section.
+
+### nockchain-wallet command not found (Manual Installation)
 ```bash
 # Ensure Cargo bin is in your PATH
 export PATH="$HOME/.cargo/bin:$PATH"
@@ -271,8 +394,9 @@ make install-nockchain-wallet
 
 ### Backend won't start
 - Check if port 5007 is already in use: `lsof -i :5007`
-- Verify `nockchain-wallet` CLI is installed and in PATH
+- Verify `nockchain-wallet` CLI is installed and in PATH (manual install)
 - Check Python virtual environment is activated: `which python3` should show the venv path
+- In Docker mode, ensure wallet container is healthy: `docker-compose ps`
 
 ### Frontend can't connect to backend
 - Verify backend is running (check terminal output)
@@ -286,6 +410,13 @@ make install-nockchain-wallet
 - Check selected notes have enough funds
 - Verify `nockchain-wallet` CLI is working: `nockchain-wallet list-notes`
 - Check backend logs for detailed error messages
+- Check transaction file verification in logs
+
+### Transaction History Issues
+- History is filtered by current wallet's public key
+- If you don't see transactions, verify the wallet address matches
+- Import keys may change the active wallet and affect history visibility
+- Check `wallet_history.json` for raw transaction data
 
 ### Build errors for nockchain-wallet
 ```bash
@@ -305,17 +436,22 @@ make install-nockchain-wallet
 
 ## 💡 Tips
 
+- **Docker First**: Always prefer Docker deployment for easier management
 - **First Time Setup**: After installing nockchain-wallet, initialize it with `nockchain-wallet init`
 - **Network Selection**: Use `--client private` flag if connecting to a private node
 - **Transaction Fees**: Higher fees may result in faster transaction processing
 - **Multiple Notes**: The wallet automatically selects the optimal combination of notes for transactions
+- **Transaction Verification**: The wallet verifies that transaction files are created with the correct hash
+- **History Tracking**: All transactions are logged with status, signer info, and timestamps
 
 ## 📚 Additional Resources
 
+- [Docker Deployment Guide](DOCKER.md) - **START HERE**
 - [Nockchain Repository](https://github.com/zorp-corp/nockchain)
 - [Rust Installation Guide](https://rustup.rs/)
 - [Flask Documentation](https://flask.palletsprojects.com/)
 - [Vite Documentation](https://vitejs.dev/)
+- [Docker Documentation](https://docs.docker.com/)
 
 ## 📝 License
 
@@ -334,10 +470,13 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 📞 Support
 
 For issues and questions:
-- Open an issue on [GitHub](https://github.com/vectrozz/nock-wallet/issues)
+- Open an issue on [GitHub](https://github.com/yourusername/nock-dev-wallet/issues)
 - Check existing issues for solutions
 - Provide detailed error messages and steps to reproduce
+- Include Docker logs if using Docker deployment
 
 ---
 
 **Built with ❤️ for the Nockchain community**
+
+**🐳 Remember: Use Docker for the best experience! See [DOCKER.md](DOCKER.md)**

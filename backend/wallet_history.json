@@ -1,0 +1,14 @@
+[
+  {
+    "hash": "szLaC1JE9LnsM98GZePFLn1wUKbK7TwBxfqFsunBpnzLXVyJM1hNnB",
+    "recipient": "3EWYkw1Z1PcQ7k9KEMgvC2g4noLbpz2UDFmmvMbMqqb4KuMZ9gm2Xk9EaSrE5KLRnNvooPjiZFWS8XLitTN2T3dWujZeXc9SGNbdB1QRYoxzePJnS7gFHMqm7YNaFUZmAjvu",
+    "amount_nock": 10.647,
+    "amount_nick": 697765,
+    "fee_nick": 10,
+    "notes_used": 3,
+    "status": "sent",
+    "created_at": "2025-10-21T15:42:05.599240",
+    "updated_at": "2025-10-21T15:42:55.490143",
+    "sent_at": "2025-10-21T15:42:55.490170"
+  }
+]

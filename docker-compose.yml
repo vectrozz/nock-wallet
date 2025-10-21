@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # Nockchain Wallet Service
+  nockchain-wallet:
+    build:
+      context: ./wallet
+      dockerfile: Dockerfile
+    container_name: nockchain-wallet-service
+    volumes:
+      - nockchain-wallet-data:/root/.nockchain-wallet
+      - ./backend/txs:/root/.nockchain-wallet/txs
+    networks:
+      - nockchain-network
+    restart: unless-stopped
+    # Keep container running
+    command: tail -f /dev/null
+    healthcheck:
+      test: ["CMD", "nockchain-wallet", "list-notes"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Backend Flask API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nockchain-wallet-backend
+    ports:
+      - "5007:5007"
+    environment:
+      - FLASK_HOST=0.0.0.0
+      - FLASK_PORT=5007
+      - FLASK_DEBUG=True
+      - NOCKCHAIN_WALLET_HOST=nockchain-wallet
+    volumes:
+      - ./backend:/app
+      - ./backend/txs:/app/txs
+      - ./backend/wallet_history.json:/app/wallet_history.json
+      - nockchain-wallet-data:/root/.nockchain-wallet
+    networks:
+      - nockchain-network
+    depends_on:
+      nockchain-wallet:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Frontend Vite Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nockchain-wallet-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:5007
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - nockchain-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  nockchain-network:
+    driver: bridge
+
+volumes:
+  nockchain-wallet-data:
+    driver: local
