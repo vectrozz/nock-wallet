@@ -654,10 +654,10 @@ function exportKeys() {
   window.location.href = `${API_BASE}/api/export-keys`
 }
 
-// Import Keys Function
-async function importKeys(input) {
+// Import Keys from File Function
+async function importKeysFromFile(input) {
   const file = input.files[0]
-  console.log('Import keys called, file:', file)
+  console.log('Import keys from file called, file:', file)
   if (!file) {
     console.log('No file selected')
     return
@@ -670,14 +670,22 @@ async function importKeys(input) {
   console.log('Sending request to:', `${API_BASE}/api/import-keys`)
 
   try {
-    //No header Content-Type - let axios handle it (binary format)
     const response = await axios.post(`${API_BASE}/api/import-keys`, formData)
     
     console.log('Response:', response.data)
     
     if (response.data.success) {
-      alert('✅ ' + response.data.message)
-      updateBalance()
+      alert('✅ ' + response.data.message + '\n\n⏳ Synchronizing wallet, please wait...')
+      
+      // Wait for wallet sync
+      console.log('Waiting for wallet sync...')
+      await new Promise(resolve => setTimeout(resolve, 3000))
+      
+      // Update balance
+      console.log('Updating balance...')
+      await updateBalance()
+      
+      alert('✅ Wallet synchronized! Balance updated.')
     } else {
       alert('❌ ' + (response.data.error || 'Unknown error'))
     }
@@ -691,10 +699,144 @@ async function importKeys(input) {
   input.value = ''
 }
 
+// Import Keys from Seedphrase Function
+async function importKeysFromSeedphrase() {
+  const seedphrase = document.getElementById('seedphraseInput').value.trim()
+  const version = document.getElementById('seedphraseVersion').value
+  
+  if (!seedphrase) {
+    alert('❌ Please enter your seed phrase')
+    return
+  }
+  
+  if (!version) {
+    alert('❌ Please select a version (0 or 1)')
+    return
+  }
+  
+  console.log('Importing from seedphrase, version:', version)
+  
+  try {
+    const response = await axios.post(`${API_BASE}/api/import-seedphrase`, {
+      seedphrase: seedphrase,
+      version: parseInt(version)
+    })
+    
+    console.log('Response:', response.data)
+    
+    if (response.data.success) {
+      alert('✅ ' + response.data.message + '\n\n⏳ Synchronizing wallet, please wait...')
+      
+      // Clear seedphrase input for security
+      document.getElementById('seedphraseInput').value = ''
+      
+      // Wait for wallet sync
+      console.log('Waiting for wallet sync...')
+      await new Promise(resolve => setTimeout(resolve, 3000))
+      
+      // Update balance
+      console.log('Updating balance...')
+      await updateBalance()
+      
+      alert('✅ Wallet synchronized! Balance updated.')
+    } else {
+      alert('❌ ' + (response.data.error || 'Unknown error'))
+    }
+  } catch (error) {
+    console.error('Import seedphrase error:', error)
+    console.error('Error response:', error.response?.data)
+    alert('❌ Error: ' + (error.response?.data?.error || error.message))
+  }
+}
+
+// Show Seedphrase Function
+async function showSeedphrase() {
+  if (!confirm('⚠️ Warning: Your seed phrase will be displayed on screen.\n\nMake sure nobody is watching and you are in a secure environment.\n\nContinue?')) {
+    return
+  }
+  
+  try {
+    const response = await axios.get(`${API_BASE}/api/show-seedphrase`)
+    
+    console.log('Seedphrase retrieved')
+    
+    if (response.data.success) {
+      // Create a modal to display the seedphrase
+      const modal = document.createElement('div')
+      modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+      `
+      
+      const content = document.createElement('div')
+      content.style.cssText = `
+        background: #1a1a1a;
+        padding: 2rem;
+        border-radius: 8px;
+        max-width: 600px;
+        width: 90%;
+        border: 2px solid #ff6b35;
+      `
+      
+      content.innerHTML = `
+        <h2 style="color: #ff6b35; margin-bottom: 1rem;">🔑 Your Seed Phrase</h2>
+        <div style="background: #2a2a2a; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; word-break: break-word; font-family: monospace; color: #fff;">
+          ${response.data.seedphrase}
+        </div>
+        <div style="color: #ffa500; margin-bottom: 1rem; font-size: 0.9rem;">
+          ⚠️ <strong>IMPORTANT:</strong> Write this down and store it safely. Never share it with anyone!
+        </div>
+        <button id="closeSeedphraseModal" style="
+          background: #ff6b35;
+          color: white;
+          border: none;
+          padding: 0.75rem 1.5rem;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 1rem;
+          width: 100%;
+        ">Close</button>
+      `
+      
+      modal.appendChild(content)
+      document.body.appendChild(modal)
+      
+      // Close modal handler
+      document.getElementById('closeSeedphraseModal').addEventListener('click', () => {
+        document.body.removeChild(modal)
+      })
+      
+      // Close on outside click
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          document.body.removeChild(modal)
+        }
+      })
+    } else {
+      alert('❌ ' + (response.data.error || 'Unknown error'))
+    }
+  } catch (error) {
+    console.error('Show seedphrase error:', error)
+    console.error('Error response:', error.response?.data)
+    alert('❌ Error: ' + (error.response?.data?.error || error.message))
+  }
+}
+
 // Make functions globally accessible for onclick handlers
 window.toggleNoteDetails = toggleDetails
 window.handleNoteCheckboxChange = handleNoteCheckbox
 window.switchView = switchView
+window.importKeysFromFile = importKeysFromFile
+window.importKeysFromSeedphrase = importKeysFromSeedphrase
+window.showSeedphrase = showSeedphrase
 
 // Attach event listeners
 document.getElementById('updateBalanceBtn').addEventListener('click', updateBalance)

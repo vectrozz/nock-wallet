@@ -551,12 +551,17 @@ def import_keys():
     """Import keys from uploaded file."""
     filepath = None
     try:
+        logger.info("=== Import keys from file endpoint called ===")
+        
         if 'file' not in request.files:
+            logger.error("No file in request")
             return jsonify({"error": "No file provided."}), 400
         
         file = request.files['file']
+        logger.info(f"File received: {file.filename}")
         
         if file.filename == '':
+            logger.error("Empty filename")
             return jsonify({"error": "No file selected."}), 400
         
         # Save file temporarily
@@ -564,23 +569,22 @@ def import_keys():
         
         # In Docker mode, save to shared txs folder so wallet container can access it
         if NOCKCHAIN_WALLET_HOST:
-            # Save to txs folder which is mounted in both containers
+            logger.info("Running in Docker mode")
             filepath = os.path.join(app.config['TX_FOLDER'], filename)
             file.save(filepath)
-            # Path as seen from wallet container
             container_filepath = f"/root/.nockchain-wallet/txs/{filename}"
         else:
-            # Local mode - use temp folder
+            logger.info("Running in local mode")
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(filepath)
             container_filepath = filepath
         
-        print(f"Import keys file saved: {filepath}")
-        print(f"Container will access: {container_filepath}")
+        logger.info(f"Import keys file saved: {filepath}")
+        logger.info(f"Container will access: {container_filepath}")
         
-        # Execute import command with proper prefix
+        # Execute import command
         cmd = WALLET_CMD_PREFIX + ["import-keys", "--file", container_filepath]
-        print(f"Executing command: {' '.join(cmd)}")
+        logger.info(f"Executing command: {' '.join(cmd)}")
         
         result = subprocess.run(
             cmd,
@@ -589,37 +593,179 @@ def import_keys():
             check=True
         )
         
-        print(f"Import successful: {result.stdout}")
+        logger.info(f"Import successful: {result.stdout}")
         
         # Delete temporary file
         if filepath and os.path.exists(filepath):
             os.remove(filepath)
+            logger.info(f"Temporary file removed: {filepath}")
+        
+        # Force wallet sync by calling list-notes
+        logger.info("Forcing wallet synchronization...")
+        sync_cmd = WALLET_CMD_PREFIX + ["list-notes"]
+        sync_result = subprocess.run(
+            sync_cmd,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        logger.info(f"Sync completed")
         
         return jsonify({
             "success": True,
-            "message": "Keys imported successfully.",
+            "message": "Keys imported and wallet synchronized successfully.",
             "output": result.stdout
         })
     
+    except subprocess.TimeoutExpired:
+        logger.error("Wallet synchronization timeout")
+        if filepath and os.path.exists(filepath):
+            os.remove(filepath)
+        return jsonify({
+            "error": "Keys imported but synchronization took too long.",
+            "details": "Please wait a moment and refresh balance manually"
+        }), 500
     except subprocess.CalledProcessError as e:
-        print(f"Import keys CalledProcessError: {e.stderr}")
-        error_details = e.stderr if e.stderr else str(e)
-        # Clean up file on error
+        logger.error(f"Import keys CalledProcessError: {e.stderr}")
         if filepath and os.path.exists(filepath):
             os.remove(filepath)
         return jsonify({
             "error": "Error importing keys.",
-            "details": error_details
+            "details": e.stderr if e.stderr else str(e)
         }), 500
     except Exception as e:
-        print(f"Import keys Exception: {type(e).__name__}: {str(e)}")
+        logger.error(f"Import keys Exception: {type(e).__name__}: {str(e)}")
         import traceback
-        traceback.print_exc()
-        # Clean up file on error
+        logger.error(traceback.format_exc())
         if filepath and os.path.exists(filepath):
             os.remove(filepath)
         return jsonify({
             "error": f"Error importing keys: {type(e).__name__}",
+            "details": str(e)
+        }), 500
+
+@app.route("/api/import-seedphrase", methods=['POST'])
+def import_seedphrase():
+    """Import keys from seed phrase."""
+    try:
+        logger.info("=== Import keys from seedphrase endpoint called ===")
+        
+        data = request.json
+        seedphrase = data.get('seedphrase', '').strip()
+        version = data.get('version')
+        
+        if not seedphrase:
+            logger.error("No seedphrase provided")
+            return jsonify({"error": "Seed phrase is required."}), 400
+        
+        if version not in [0, 1]:
+            logger.error(f"Invalid version: {version}")
+            return jsonify({"error": "Version must be 0 or 1."}), 400
+        
+        logger.info(f"Importing seedphrase with version: {version}")
+        
+        # Execute import-keys command with seedphrase
+        cmd = WALLET_CMD_PREFIX + [
+            "import-keys",
+            "--seedphrase", seedphrase,
+            "--version", str(version)
+        ]
+        logger.info(f"Executing command: {' '.join([cmd[0], cmd[1], '--seedphrase', '[REDACTED]', '--version', str(version)])}")
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        logger.info(f"Import successful: {result.stdout}")
+        
+        # Force wallet sync by calling list-notes
+        logger.info("Forcing wallet synchronization...")
+        sync_cmd = WALLET_CMD_PREFIX + ["list-notes"]
+        sync_result = subprocess.run(
+            sync_cmd,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        logger.info(f"Sync completed")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Keys imported from seed phrase (version {version}) and wallet synchronized successfully.",
+            "output": result.stdout
+        })
+    
+    except subprocess.TimeoutExpired:
+        logger.error("Wallet synchronization timeout")
+        return jsonify({
+            "error": "Keys imported but synchronization took too long.",
+            "details": "Please wait a moment and refresh balance manually"
+        }), 500
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Import seedphrase CalledProcessError: {e.stderr}")
+        return jsonify({
+            "error": "Error importing keys from seed phrase.",
+            "details": e.stderr if e.stderr else str(e)
+        }), 500
+    except Exception as e:
+        logger.error(f"Import seedphrase Exception: {type(e).__name__}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Error importing keys from seed phrase: {type(e).__name__}",
+            "details": str(e)
+        }), 500
+
+@app.route("/api/show-seedphrase")
+def show_seedphrase():
+    """Show wallet seed phrase."""
+    try:
+        logger.info("=== Show seedphrase endpoint called ===")
+        
+        # Execute show-seedphrase command
+        cmd = WALLET_CMD_PREFIX + ["show-seedphrase"]
+        logger.info(f"Executing command: {' '.join(cmd)}")
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        # Extract seedphrase from output
+        output = result.stdout
+        logger.info("Seedphrase retrieved successfully")
+        
+        # The output might contain ANSI codes and other info, extract the seedphrase
+        # Usually it's on a line by itself or after "Seed Phrase:"
+        seedphrase = output.strip()
+        
+        # Try to extract if there's a label
+        if "Seed Phrase:" in output:
+            seedphrase = output.split("Seed Phrase:")[1].strip()
+        
+        return jsonify({
+            "success": True,
+            "seedphrase": seedphrase,
+            "raw_output": output
+        })
+    
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Show seedphrase CalledProcessError: {e.stderr}")
+        return jsonify({
+            "error": "Error retrieving seed phrase.",
+            "details": e.stderr if e.stderr else str(e)
+        }), 500
+    except Exception as e:
+        logger.error(f"Show seedphrase Exception: {type(e).__name__}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": f"Error retrieving seed phrase: {type(e).__name__}",
             "details": str(e)
         }), 500
 
