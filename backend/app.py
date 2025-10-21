@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for frontend requests
+CORS(app, resources={r"/api/*": {"origins": "*"}})  # Permet toutes les origines en développement
 app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
 app.config['TX_FOLDER'] = os.path.join(os.path.dirname(__file__), 'txs')  # Use local txs folder
 app.config['HISTORY_FILE'] = os.path.join(os.path.dirname(__file__), 'wallet_history.json')
@@ -164,66 +164,90 @@ def update_transaction_status(tx_hash, new_status):
     return updated
 
 def get_wallet_balance():
-    """Execute CLI command and calculate total assets sum."""
+    """Get wallet balance by parsing list-notes output."""
     try:
-        logger.info("Fetching wallet balance...")
-        # Execute CLI command
-        cmd = WALLET_CMD_PREFIX + ['list-notes']
+        # Execute list-notes command
         result = subprocess.run(
-            cmd,
+            WALLET_CMD_PREFIX + ["list-notes"],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=120,
+            bufsize=-1
         )
-
+        
         output = result.stdout
-
-        logger.info("Extracting notes from output...")
+        print(f"=== RAW OUTPUT LENGTH: {len(output)} characters ===")
+        print(f"=== FIRST 500 chars: {output[:500]} ===")
+        print(f"=== LAST 500 chars: {output[-500:]} ===")
         
-        # Split by the separator line
-        notes_raw = output.split("――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――")
-        
+        # Parse the output to extract notes
         notes = []
-        total_assets = 0
         
-        for note_text in notes_raw:
-            if not note_text.strip():
+        # Split by "Note " to find individual notes
+        note_blocks = output.split("Note ")
+        print(f"=== FOUND {len(note_blocks)} note blocks ===")
+        
+        for i, block in enumerate(note_blocks[1:], 1):  # Skip first empty split
+            print(f"=== Processing note block {i} ===")
+            try:
+                # Extract note details using regex
+                note_number_match = re.match(r"(\d+):", block)
+                if not note_number_match:
+                    print(f"=== Skipping block {i}: no note number ===")
+                    continue
+                
+                note_number = int(note_number_match.group(1))
+                
+                # Extract name
+                name_match = re.search(r"- Name: \[(.*?)\]", block, re.DOTALL)
+                name = name_match.group(1).strip() if name_match else "Unknown"
+                
+                # Extract value
+                value_match = re.search(r"- Value: (\d+)", block)
+                value = int(value_match.group(1)) if value_match else 0
+                
+                # Extract address (ship)
+                address_match = re.search(r"- Address: ~(\S+)", block)
+                address = f"~{address_match.group(1)}" if address_match else "Unknown"
+                
+                notes.append({
+                    "number": note_number,
+                    "name": name,
+                    "value": value,
+                    "address": address,
+                    "raw": block[:200]  # Garder les 200 premiers caractères pour debug
+                })
+                
+                print(f"=== Successfully parsed note {note_number}: {name} = {value} ===")
+                
+            except Exception as e:
+                print(f"=== Error parsing note block {i}: {str(e)} ===")
+                import traceback
+                traceback.print_exc()
                 continue
-                
-            # Extract information using regex
-            name_match = re.search(r"- Name: \[(.*?)\]", note_text, re.DOTALL)
-            assets_match = re.search(r"- Assets: (\d+)", note_text)
-            block_height_match = re.search(r"- Block Height: (\d+)", note_text)
-            source_match = re.search(r"- Source: ([^\n]+)", note_text)
-            required_sigs_match = re.search(r"- Required Signatures: (\d+)", note_text)
-            signers_match = re.search(r"- Signers:\s*\n(.*?)(?=\n\n|$)", note_text, re.DOTALL)
-            
-            if assets_match:
-                assets = int(assets_match.group(1))
-                total_assets += assets
-                
-                note = {
-                    "name": name_match.group(1).replace("\n", "").strip() if name_match else "Unknown",
-                    "assets": assets,
-                    "block_height": int(block_height_match.group(1)) if block_height_match else 0,
-                    "source": source_match.group(1).strip() if source_match else "Unknown",
-                    "required_signatures": int(required_sigs_match.group(1)) if required_sigs_match else 0,
-                    "signers": signers_match.group(1).strip().split("\n") if signers_match else []
-                }
-                
-                notes.append(note)
+        
+        total_assets = sum(note["value"] for note in notes)
+        
+        print(f"=== FINAL RESULT: {len(notes)} notes, total: {total_assets} ===")
         
         return {
-            "total_assets": total_assets,
+            "notes": notes,
             "notes_count": len(notes),
-            "notes": notes
+            "total_assets": total_assets
         }
-
+        
+    except subprocess.TimeoutExpired:
+        print("=== ERROR: Command timeout ===")
+        return {"notes": [], "notes_count": 0, "total_assets": 0, "error": "Command timeout"}
     except subprocess.CalledProcessError as e:
-        return {
-            "error": "Error executing command.",
-            "details": e.stderr
-        }
+        print(f"=== ERROR: Command failed: {e.stderr} ===")
+        return {"notes": [], "notes_count": 0, "total_assets": 0, "error": str(e)}
+    except Exception as e:
+        print(f"=== ERROR: Unexpected error: {str(e)} ===")
+        import traceback
+        traceback.print_exc()
+        return {"notes": [], "notes_count": 0, "total_assets": 0, "error": str(e)}
 
 @app.route("/api/balance")
 def api_balance():
@@ -617,7 +641,7 @@ def import_keys():
             sync_cmd,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=120
         )
         logger.info(f"Sync completed")
         
@@ -698,7 +722,7 @@ def import_seedphrase():
             sync_cmd,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=120
         )
         logger.info(f"Sync completed")
         
