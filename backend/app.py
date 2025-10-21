@@ -347,7 +347,7 @@ def create_transaction():
         tx_name = tx_name_match.group(1).strip() if tx_name_match else None
         
         if not tx_name:
-            return jsonify({"error": "Failed to extract transaction name from output."}), 500
+            return jsonify({"error": "Failed to extract transaction name from output."}, 500)
         
         print(f"Transaction name extracted from output: {tx_name}")
         
@@ -359,7 +359,7 @@ def create_transaction():
             return jsonify({
                 "error": "Transaction was created but file verification failed.",
                 "transaction_name": tx_name
-            }), 500
+            }, 500)
         
         # Add transaction to history with signer information
         transaction = add_transaction_to_history(
@@ -549,6 +549,7 @@ def export_keys():
 @app.route("/api/import-keys", methods=['POST'])
 def import_keys():
     """Import keys from uploaded file."""
+    filepath = None
     try:
         if 'file' not in request.files:
             return jsonify({"error": "No file provided."}), 400
@@ -591,7 +592,8 @@ def import_keys():
         print(f"Import successful: {result.stdout}")
         
         # Delete temporary file
-        os.remove(filepath)
+        if filepath and os.path.exists(filepath):
+            os.remove(filepath)
         
         return jsonify({
             "success": True,
@@ -600,17 +602,26 @@ def import_keys():
         })
     
     except subprocess.CalledProcessError as e:
-        print(f"Import keys error: {e.stderr}")
+        print(f"Import keys CalledProcessError: {e.stderr}")
+        error_details = e.stderr if e.stderr else str(e)
         # Clean up file on error
-        if 'filepath' in locals() and os.path.exists(filepath):
+        if filepath and os.path.exists(filepath):
             os.remove(filepath)
-        return jsonify({"error": "Error importing keys.", "details": e.stderr}), 500
+        return jsonify({
+            "error": "Error importing keys.",
+            "details": error_details
+        }), 500
     except Exception as e:
-        print(f"Import keys exception: {str(e)}")
+        print(f"Import keys Exception: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         # Clean up file on error
-        if 'filepath' in locals() and os.path.exists(filepath):
+        if filepath and os.path.exists(filepath):
             os.remove(filepath)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": f"Error importing keys: {type(e).__name__}",
+            "details": str(e)
+        }), 500
 
 if __name__ == "__main__":
     host = os.getenv('FLASK_HOST', '0.0.0.0')
