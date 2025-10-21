@@ -542,7 +542,9 @@ def export_keys():
         return send_file(export_file, as_attachment=True, download_name='keys.export')
     
     except subprocess.CalledProcessError as e:
-        return jsonify({"error": "Error exporting keys.", "details": str(e)}), 500
+        return jsonify({"error": "Error exporting keys.", "details": e.stderr}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/import-keys", methods=['POST'])
 def import_keys():
@@ -558,11 +560,27 @@ def import_keys():
         
         # Save file temporarily
         filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
         
-        # Execute import command
-        cmd = WALLET_CMD_PREFIX + ["import-keys", "--file", filepath]
+        # In Docker mode, save to shared txs folder so wallet container can access it
+        if NOCKCHAIN_WALLET_HOST:
+            # Save to txs folder which is mounted in both containers
+            filepath = os.path.join(app.config['TX_FOLDER'], filename)
+            file.save(filepath)
+            # Path as seen from wallet container
+            container_filepath = f"/root/.nockchain-wallet/txs/{filename}"
+        else:
+            # Local mode - use temp folder
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            container_filepath = filepath
+        
+        print(f"Import keys file saved: {filepath}")
+        print(f"Container will access: {container_filepath}")
+        
+        # Execute import command with proper prefix
+        cmd = WALLET_CMD_PREFIX + ["import-keys", "--file", container_filepath]
+        print(f"Executing command: {' '.join(cmd)}")
+        
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -570,14 +588,28 @@ def import_keys():
             check=True
         )
         
+        print(f"Import successful: {result.stdout}")
+        
         # Delete temporary file
         os.remove(filepath)
         
-        return jsonify({"success": True, "message": "Keys imported successfully."})
+        return jsonify({
+            "success": True,
+            "message": "Keys imported successfully.",
+            "output": result.stdout
+        })
     
     except subprocess.CalledProcessError as e:
+        print(f"Import keys error: {e.stderr}")
+        # Clean up file on error
+        if 'filepath' in locals() and os.path.exists(filepath):
+            os.remove(filepath)
         return jsonify({"error": "Error importing keys.", "details": e.stderr}), 500
     except Exception as e:
+        print(f"Import keys exception: {str(e)}")
+        # Clean up file on error
+        if 'filepath' in locals() and os.path.exists(filepath):
+            os.remove(filepath)
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
