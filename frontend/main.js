@@ -657,10 +657,17 @@ function exportKeys() {
 // Import Keys Function
 async function importKeys(input) {
   const file = input.files[0]
-  if (!file) return
+  console.log('Import keys called, file:', file)
+  if (!file) {
+    console.log('No file selected')
+    return
+  }
 
   const formData = new FormData()
   formData.append('file', file)
+
+  console.log('API_BASE:', API_BASE)
+  console.log('Sending request to:', `${API_BASE}/api/import-keys`)
 
   try {
     const response = await axios.post(`${API_BASE}/api/import-keys`, formData, {
@@ -669,6 +676,8 @@ async function importKeys(input) {
       }
     })
     
+    console.log('Response:', response.data)
+    
     if (response.data.success) {
       alert('✅ ' + response.data.message)
       updateBalance()
@@ -676,7 +685,9 @@ async function importKeys(input) {
       alert('❌ ' + (response.data.error || 'Unknown error'))
     }
   } catch (error) {
-    alert('❌ Error: ' + error.message)
+    console.error('Import error:', error)
+    console.error('Error response:', error.response?.data)
+    alert('❌ Error: ' + (error.response?.data?.error || error.message))
   }
 
   // Reset input
