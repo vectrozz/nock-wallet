@@ -1,16 +1,23 @@
-from flask import Flask, jsonify, send_file, request
-from flask_cors import CORS
-import subprocess
-import re
 import os
-import tempfile
+import subprocess
 import json
-import time
 from datetime import datetime
+from flask import Flask, jsonify, request, send_file
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
-from dotenv import load_dotenv
+import logging
+import sys
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
+)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
+from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
@@ -24,11 +31,11 @@ NOCKCHAIN_WALLET_HOST = os.getenv('NOCKCHAIN_WALLET_HOST')
 if NOCKCHAIN_WALLET_HOST:
     # Running in Docker - wallet commands will be executed in the wallet container
     WALLET_CMD_PREFIX = ['docker', 'exec', 'nockchain-wallet-service', 'nockchain-wallet']
-    print(f"Running in Docker mode - wallet container: {NOCKCHAIN_WALLET_HOST}")
+    logger.info(f"Running in Docker mode - wallet container: {NOCKCHAIN_WALLET_HOST}")
 else:
     # Running locally - use local nockchain-wallet
     WALLET_CMD_PREFIX = ['nockchain-wallet']
-    print("Running in local mode - using local nockchain-wallet")
+    logger.info("Running in local mode - using local nockchain-wallet")
 
 # Create txs folder if it doesn't exist
 os.makedirs(app.config['TX_FOLDER'], exist_ok=True)
@@ -49,14 +56,14 @@ def get_wallet_public_key():
         key_match = re.search(r"Public Key: ([^\n]+)", output)
         if key_match:
             public_key = key_match.group(1).strip()
-            print(f"Wallet public key: {public_key}")
+            logger.info(f"Wallet public key: {public_key}")
             return public_key
         
-        print("Warning: Could not extract public key from show-key output")
+        logger.warning("Could not extract public key from show-key output")
         return None
         
     except subprocess.CalledProcessError as e:
-        print(f"Error getting wallet public key: {e.stderr}")
+        logger.error(f"Error getting wallet public key: {e.stderr}")
         return None
 
 def get_tx_files_in_folder():
@@ -74,7 +81,7 @@ def verify_transaction_file(tx_name, old_files, timeout=5):
     expected_filename = f"{tx_name}.tx"
     start_time = time.time()
     
-    print(f"Verifying transaction file: {expected_filename}")
+    logger.info(f"Verifying transaction file: {expected_filename}")
     
     while time.time() - start_time < timeout:
         current_files = get_tx_files_in_folder()
@@ -83,12 +90,12 @@ def verify_transaction_file(tx_name, old_files, timeout=5):
         if expected_filename in current_files:
             # If it's a new file (not in old_files) or recently modified
             if expected_filename not in old_files or current_files[expected_filename] > old_files.get(expected_filename, 0):
-                print(f"✓ Transaction file verified: {expected_filename}")
+                logger.info(f"✓ Transaction file verified: {expected_filename}")
                 return True
         
         time.sleep(0.1)
     
-    print(f"✗ Transaction file verification failed: {expected_filename} not found")
+    logger.warning(f"Transaction file verification failed: {expected_filename} not found")
     return False
 
 def load_transaction_history():
@@ -98,7 +105,7 @@ def load_transaction_history():
             with open(app.config['HISTORY_FILE'], 'r') as f:
                 return json.load(f)
         except json.JSONDecodeError:
-            print("Warning: Could not decode wallet_history.json, starting fresh")
+            logger.warning("Could not decode wallet_history.json, starting fresh")
             return []
     return []
 
@@ -106,7 +113,7 @@ def save_transaction_history(history):
     """Save transaction history to JSON file."""
     with open(app.config['HISTORY_FILE'], 'w') as f:
         json.dump(history, indent=2, fp=f)
-    print(f"Transaction history saved: {len(history)} transactions")
+    logger.info(f"Transaction history saved: {len(history)} transactions")
 
 def add_transaction_to_history(tx_hash, recipient, amount_nock, amount_nick, fee_nick, notes_used, signer, status='created'):
     """Add a new transaction to history."""
@@ -128,7 +135,7 @@ def add_transaction_to_history(tx_hash, recipient, amount_nock, amount_nick, fee
     history.append(transaction)
     save_transaction_history(history)
     
-    print(f"Transaction added to history: {tx_hash} - Status: {status} - Signer: {signer}")
+    logger.info(f"Transaction added to history: {tx_hash} - Status: {status} - Signer: {signer}")
     return transaction
 
 def update_transaction_status(tx_hash, new_status):
@@ -143,20 +150,20 @@ def update_transaction_status(tx_hash, new_status):
             if new_status == 'sent':
                 tx['sent_at'] = datetime.now().isoformat()
             updated = True
-            print(f"Transaction status updated: {tx_hash} -> {new_status}")
+            logger.info(f"Transaction status updated: {tx_hash} -> {new_status}")
             break
     
     if updated:
         save_transaction_history(history)
     else:
-        print(f"Warning: Transaction {tx_hash} not found in history")
+        logger.warning(f"Transaction {tx_hash} not found in history")
     
     return updated
 
 def get_wallet_balance():
     """Execute CLI command and calculate total assets sum."""
     try:
-        print("Fetching wallet balance...")
+        logger.info("Fetching wallet balance...")
         # Execute CLI command
         cmd = WALLET_CMD_PREFIX + ['list-notes']
         result = subprocess.run(
@@ -168,7 +175,7 @@ def get_wallet_balance():
 
         output = result.stdout
 
-        print("Extracting notes from output...")
+        logger.info("Extracting notes from output...")
         
         # Split by the separator line
         notes_raw = output.split("――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――")
@@ -251,7 +258,7 @@ def create_transaction():
         # Get wallet public key for history tracking
         signer_public_key = get_wallet_public_key()
         if not signer_public_key:
-            print("Warning: Could not get wallet public key, using 'Unknown'")
+            logger.warning("Could not get wallet public key, using 'Unknown'")
             signer_public_key = "Unknown"
         
         # Convert Nock to Nick
@@ -291,7 +298,7 @@ def create_transaction():
                     return jsonify({
                         "error": f"Selected notes ({accumulated} nick) don't have enough to cover the fee ({fee_nick} nick)."
                     }, 400)
-                print(f"Using all funds from selected notes: {accumulated} nick - {fee_nick} fee = {amount_nick} nick to send")
+                logger.info(f"Using all funds from selected notes: {accumulated} nick - {fee_nick} fee = {amount_nick} nick to send")
         else:
             # Auto-select notes - Sort by assets descending to minimize number of inputs
             total_needed = amount_nick + fee_nick
@@ -312,16 +319,16 @@ def create_transaction():
         names_parts = [f"[{note['name']}]" for note in selected_notes]
         names_string = ",".join(names_parts)
         
-        print(f"Selected {len(selected_notes)} notes:")
+        logger.info(f"Selected {len(selected_notes)} notes:")
         for i, note in enumerate(selected_notes):
             note_nock = note['assets'] / 65536
-            print(f"  - Note #{i+1}: {note_nock:.4f} NOCK ({note['assets']} NICK)")
-        print(f"Total: {accumulated} NICK")
-        print(f"Names string: {names_string}")
+            logger.info(f"  - Note #{i+1}: {note_nock:.4f} NOCK ({note['assets']} NICK)")
+        logger.info(f"Total: {accumulated} NICK")
+        logger.info(f"Names string: {names_string}")
         
         # Get current tx files before creating transaction
         old_tx_files = get_tx_files_in_folder()
-        print(f"Existing transaction files before creation: {len(old_tx_files)}")
+        logger.info(f"Existing transaction files before creation: {len(old_tx_files)}")
         
         # Execute create-tx command
         cmd = WALLET_CMD_PREFIX + [
@@ -331,7 +338,7 @@ def create_transaction():
             "--gifts", str(amount_nick),
             "--fee", str(fee_nick)
         ]
-        print("Creating transaction with command:", " ".join(cmd))
+        logger.info("Creating transaction with command: %s", " ".join(cmd))
 
         result = subprocess.run(
             cmd,
@@ -342,20 +349,20 @@ def create_transaction():
         
         # Parse output to extract transaction name (which is the hash)
         output = result.stdout
-        print("Transaction creation output:", output)
+        logger.info("Transaction creation output: %s", output)
         tx_name_match = re.search(r"Name: ([^\n]+)", output)
         tx_name = tx_name_match.group(1).strip() if tx_name_match else None
         
         if not tx_name:
             return jsonify({"error": "Failed to extract transaction name from output."}, 500)
         
-        print(f"Transaction name extracted from output: {tx_name}")
+        logger.info(f"Transaction name extracted from output: {tx_name}")
         
         # Verify that the transaction file was created with the correct name
         file_verified = verify_transaction_file(tx_name, old_tx_files)
         
         if not file_verified:
-            print(f"Warning: Transaction file {tx_name}.tx not found or not recent")
+            logger.warning(f"Transaction file {tx_name}.tx not found or not recent")
             return jsonify({
                 "error": "Transaction was created but file verification failed.",
                 "transaction_name": tx_name
@@ -437,7 +444,7 @@ def sign_transaction():
             text=True,
             check=True
         )
-        print("Sign transaction output:", result.stdout)
+        logger.info("Sign transaction output: %s", result.stdout)
         
         # Update transaction status in history
         update_transaction_status(tx_name, 'signed')
@@ -471,7 +478,7 @@ def send_transaction():
             text=True,
             check=True
         )
-        print("Send transaction output:", result.stdout)
+        logger.info("Send transaction output: %s", result.stdout)
         
         # Update transaction status in history
         update_transaction_status(tx_name, 'sent')
@@ -506,7 +513,7 @@ def get_transaction_history():
         # Filter history to only show transactions from current wallet
         filtered_history = [tx for tx in history if tx.get('signer') == current_signer]
         
-        print(f"Transaction history filtered: {len(filtered_history)} out of {len(history)} transactions for signer: {current_signer[:20]}...")
+        logger.info(f"Transaction history filtered: {len(filtered_history)} out of {len(history)} transactions for signer: {current_signer[:20]}...")
         
         return jsonify({
             "success": True,
