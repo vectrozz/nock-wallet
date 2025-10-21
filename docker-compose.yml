@@ -13,7 +13,6 @@ services:
     networks:
       - nockchain-network
     restart: unless-stopped
-    # Keep container running
     command: tail -f /dev/null
     healthcheck:
       test: ["CMD", "nockchain-wallet", "list-notes"]
@@ -40,6 +39,7 @@ services:
       - ./backend/txs:/app/txs
       - ./backend/wallet_history.json:/app/wallet_history.json
       - nockchain-wallet-data:/root/.nockchain-wallet
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - nockchain-network
     depends_on:
@@ -54,7 +54,7 @@ services:
       dockerfile: Dockerfile
     container_name: nockchain-wallet-frontend
     ports:
-      - "5173:5173"
+      - "5174:5173"
     environment:
       - VITE_API_BASE_URL=http://localhost:5007
     volumes:
