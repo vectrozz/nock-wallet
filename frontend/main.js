@@ -670,11 +670,8 @@ async function importKeys(input) {
   console.log('Sending request to:', `${API_BASE}/api/import-keys`)
 
   try {
-    const response = await axios.post(`${API_BASE}/api/import-keys`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
+    //No header Content-Type - let axios handle it (binary format)
+    const response = await axios.post(`${API_BASE}/api/import-keys`, formData)
     
     console.log('Response:', response.data)
     
