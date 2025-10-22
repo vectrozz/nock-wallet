@@ -178,84 +178,58 @@ def get_wallet_balance():
         
         output = result.stdout
         print(f"=== RAW OUTPUT LENGTH: {len(output)} characters ===")
+        print(f"=== FIRST 500 chars: {output[:500]} ===")
+        print(f"=== LAST 500 chars: {output[-500:]} ===")
         
         # Parse the output to extract notes
         notes = []
         
-        # Find the "Wallet Notes" section
-        if "Wallet Notes" not in output:
-            print("=== No 'Wallet Notes' section found ===")
-            return {"notes": [], "notes_count": 0, "total_assets": 0}
+        # Split by "Note " to find individual notes
+        note_blocks = output.split("Note ")
+        print(f"=== FOUND {len(note_blocks)} note blocks ===")
         
-        # Split by the separator line (unicode em-dash character)
-        sections = re.split(r'[―\-]{50,}', output)
-        
-        print(f"=== FOUND {len(sections)} sections after split ===")
-        
-        note_number = 0
-        for i, section in enumerate(sections):
-            section = section.strip()
-            
-            # Skip empty sections and header
-            if not section or "Wallet Notes" in section:
-                continue
-            
-            # Check if this section contains note details
-            if "Details" not in section and "- Name:" not in section:
-                continue
-            
-            note_number += 1
-            
+        for i, block in enumerate(note_blocks[1:], 1):  # Skip first empty split
+            print(f"=== Processing note block {i} ===")
             try:
-                # Extract name (can be multiline, between brackets)
-                name_match = re.search(r'- Name:\s*\[(.*?)\]', section, re.DOTALL)
-                if name_match:
-                    name = name_match.group(1).strip().replace('\n', '').replace(' ', '')
-                else:
-                    name = "Unknown"
+                # Extract note details using regex
+                note_number_match = re.match(r"(\d+):", block)
+                if not note_number_match:
+                    print(f"=== Skipping block {i}: no note number ===")
+                    continue
                 
-                # Extract assets/value
-                assets_match = re.search(r'- Assets:\s*(\d+)', section)
-                value = int(assets_match.group(1)) if assets_match else 0
+                note_number = int(note_number_match.group(1))
                 
-                # Extract block height
-                block_match = re.search(r'- Block Height:\s*(\d+)', section)
-                block_height = int(block_match.group(1)) if block_match else 0
+                # Extract name
+                name_match = re.search(r"- Name: \[(.*?)\]", block, re.DOTALL)
+                name = name_match.group(1).strip() if name_match else "Unknown"
                 
-                # Extract source address
-                source_match = re.search(r'- Source:\s*(\S+)', section)
-                source = source_match.group(1) if source_match else "Unknown"
+                # Extract value
+                value_match = re.search(r"- Value: (\d+)", block)
+                value = int(value_match.group(1)) if value_match else 0
                 
-                # Extract signer address (in Lock section, after "- Signers:")
-                signer_match = re.search(r'- Signers:\s*\n\s*(\S+)', section, re.MULTILINE)
-                if not signer_match:
-                    # Try alternative format
-                    signer_match = re.search(r'- Signers:\s*(\S+)', section)
-                signer = signer_match.group(1).strip() if signer_match else "Unknown"
+                # Extract address (ship)
+                address_match = re.search(r"- Address: ~(\S+)", block)
+                address = f"~{address_match.group(1)}" if address_match else "Unknown"
                 
-                note = {
-                    'number': note_number,
-                    'name': name,
-                    'value': value,
-                    'block_height': block_height,
-                    'source': source,
-                    'signer': signer
-                }
+                notes.append({
+                    "number": note_number,
+                    "name": name,
+                    "value": value,
+                    "address": address,
+                    "raw": block[:200]  # Garder les 200 premiers caractères pour debug
+                })
                 
-                notes.append(note)
-                
-                print(f"=== Note {note_number}: {name[:30]}... = {value} nick (block {block_height}) ===")
+                print(f"=== Successfully parsed note {note_number}: {name} = {value} ===")
                 
             except Exception as e:
-                print(f"=== Error parsing section {i}: {str(e)} ===")
-                print(f"=== Section content (first 200 chars): {section[:200]} ===")
+                print(f"=== Error parsing note block {i}: {str(e)} ===")
                 import traceback
                 traceback.print_exc()
                 continue
         
         total_assets = sum(note["value"] for note in notes)
         
-        print(f"=== FINAL: {len(notes)} notes parsed, total: {total_assets} nick ===")
+        print(f"=== FINAL RESULT: {len(notes)} notes, total: {total_assets} ===")
         
         return {
             "notes": notes,

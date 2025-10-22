@@ -301,83 +301,6 @@ async function updateBalance() {
   }
 }
 
-// Create a note item with expandable details
-function createNoteItem(note, index) {
-  const noteDiv = document.createElement('div')
-  noteDiv.className = 'bg-gray-800 rounded-lg overflow-hidden mb-2'
-  
-  const nockAmount = nickToNock(note.value) // Changed from note.assets to note.value
-  
-  // Main clickable header
-  const header = document.createElement('div')
-  header.className = 'flex justify-between items-center px-4 py-3 hover:bg-gray-700 transition-colors'
-  
-  header.innerHTML = `
-    <div class="flex items-center gap-3 flex-1">
-      <input type="checkbox" 
-             id="checkbox-${index}" 
-             class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-yellow-600 focus:ring-yellow-500 cursor-pointer"
-             onchange="window.handleNoteCheckboxChange(${index}, this.checked)">
-      <div class="flex-1 cursor-pointer" onclick="window.toggleNoteDetails(${index})">
-        <span class="text-sm text-gray-400 font-mono break-all">${truncateString(note.name, 50)}</span>
-      </div>
-    </div>
-    <div class="flex items-center gap-4 ml-4 cursor-pointer" onclick="window.toggleNoteDetails(${index})">
-      <span class="text-sm text-blue-400">Block: ${note.block_height}</span>
-      <div class="text-right">
-        <div>
-          <span class="text-2xl font-bold text-green-400">${nockAmount}</span>
-          <span class="text-xs text-gray-400 ml-1">nock</span>
-        </div>
-        <div>
-          <span class="text-sm text-gray-400">${note.value.toLocaleString()}</span>
-          <span class="text-xs text-gray-500 ml-1">nick</span>
-        </div>
-      </div>
-      <svg id="arrow-${index}" class="w-5 h-5 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-      </svg>
-    </div>
-  `
-  
-  // Details section (hidden by default)
-  const details = document.createElement('div')
-  details.id = `details-${index}`
-  details.className = 'hidden px-4 py-3 bg-gray-900 border-t border-gray-700'
-  details.innerHTML = `
-    <div class="space-y-2 text-sm">
-      <div>
-        <span class="text-gray-400">Full Name:</span>
-        <p class="text-gray-200 font-mono break-all mt-1">${note.name}</p>
-      </div>
-      <div>
-        <span class="text-gray-400">Source:</span>
-        <p class="text-gray-200 font-mono break-all mt-1">${note.source}</p>
-      </div>
-      <div>
-        <span class="text-gray-400">Block Height:</span>
-        <span class="text-gray-200 ml-2">${note.block_height}</span>
-      </div>
-      <div>
-        <span class="text-gray-400">Signer:</span>
-        <p class="text-gray-200 font-mono text-xs break-all mt-1 bg-gray-800 p-2 rounded">${note.signer}</p>
-      </div>
-      <div>
-        <span class="text-gray-400">Value:</span>
-        <p class="text-gray-200 mt-1">
-          ${nockAmount} nock<br>
-          <span class="text-sm text-gray-400">${note.value.toLocaleString()} nick</span>
-        </p>
-      </div>
-    </div>
-  `
-  
-  noteDiv.appendChild(header)
-  noteDiv.appendChild(details)
-  
-  return noteDiv
-}
-
 // Sort notes based on current sort settings
 function sortNotes(notes) {
   const sorted = [...notes].sort((a, b) => {
@@ -385,8 +308,8 @@ function sortNotes(notes) {
     
     if (sortBy === 'block_height') {
       comparison = a.block_height - b.block_height
-    } else if (sortBy === 'value') { // Changed from 'assets' to 'value'
-      comparison = a.value - b.value
+    } else if (sortBy === 'assets') {
+      comparison = a.assets - b.assets
     }
     
     return sortOrder === 'asc' ? comparison : -comparison
@@ -411,9 +334,9 @@ function renderNotes() {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
         </svg>
       </button>
-      <button id="sortByAmount" class="flex items-center gap-2 px-3 py-1 rounded transition-colors ${sortBy === 'value' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}">
+      <button id="sortByAmount" class="flex items-center gap-2 px-3 py-1 rounded transition-colors ${sortBy === 'assets' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}">
         <span>Amount</span>
-        <svg class="w-4 h-4 ${sortBy === 'value' && sortOrder === 'asc' ? 'rotate-180' : ''} transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4 ${sortBy === 'assets' && sortOrder === 'asc' ? 'rotate-180' : ''} transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
         </svg>
       </button>
@@ -433,10 +356,10 @@ function renderNotes() {
   })
   
   document.getElementById('sortByAmount').addEventListener('click', () => {
-    if (sortBy === 'value') { // Changed from 'assets' to 'value'
+    if (sortBy === 'assets') {
       sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'
     } else {
-      sortBy = 'value' // Changed from 'assets' to 'value'
+      sortBy = 'assets'
       sortOrder = 'desc'
     }
     renderNotes()
@@ -463,13 +386,117 @@ function updateSendSelectedButton() {
   sendSelectedBtn.disabled = selectedNotes.size === 0
   if (selectedNotes.size > 0) {
     const totalSelected = Array.from(selectedNotes).reduce((sum, index) => {
-      return sum + allNotes[index].value // Changed from .assets to .value
+      return sum + allNotes[index].assets
     }, 0)
     const totalNock = nickToNock(totalSelected)
     sendSelectedBtn.textContent = `💸 Send Selected (${selectedNotes.size} notes - ${totalNock} nock)`
   } else {
     sendSelectedBtn.textContent = '💸 Send Selected'
   }
+}
+
+// Handle note checkbox change
+function handleNoteCheckbox(index, checked) {
+  if (checked) {
+    selectedNotes.add(index)
+  } else {
+    selectedNotes.delete(index)
+  }
+  updateSendSelectedButton()
+}
+
+// Create a note item with expandable details
+function createNoteItem(note, index) {
+  const noteDiv = document.createElement('div')
+  noteDiv.className = 'bg-gray-800 rounded-lg overflow-hidden mb-2'
+  
+  const nockAmount = nickToNock(note.assets)
+  
+  // Main clickable header
+  const header = document.createElement('div')
+  header.className = 'flex justify-between items-center px-4 py-3 hover:bg-gray-700 transition-colors'
+  
+  header.innerHTML = `
+    <div class="flex items-center gap-3 flex-1">
+      <input type="checkbox" 
+             id="checkbox-${index}" 
+             class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-yellow-600 focus:ring-yellow-500 cursor-pointer"
+             onchange="window.handleNoteCheckboxChange(${index}, this.checked)">
+      <div class="flex-1 cursor-pointer" onclick="window.toggleNoteDetails(${index})">
+        <span class="text-sm text-gray-400 font-mono break-all">${truncateString(note.name, 50)}</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-4 ml-4 cursor-pointer" onclick="window.toggleNoteDetails(${index})">
+      <span class="text-sm text-blue-400">Block: ${note.block_height}</span>
+      <div class="text-right">
+        <div>
+          <span class="text-2xl font-bold text-green-400">${nockAmount}</span>
+          <span class="text-xs text-gray-400 ml-1">nock</span>
+        </div>
+        <div>
+          <span class="text-sm text-gray-400">${note.assets.toLocaleString()}</span>
+          <span class="text-xs text-gray-500 ml-1">nick</span>
+        </div>
+      </div>
+      <svg id="arrow-${index}" class="w-5 h-5 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+      </svg>
+    </div>
+  `
+  
+  // Details section (hidden by default)
+  const details = document.createElement('div')
+  details.id = `details-${index}`
+  details.className = 'hidden px-4 py-3 bg-gray-900 border-t border-gray-700'
+  details.innerHTML = `
+    <div class="space-y-2 text-sm">
+      <div>
+        <span class="text-gray-400">Full Name:</span>
+        <p class="text-gray-200 font-mono break-all mt-1">${note.name}</p>
+      </div>
+      <div>
+        <span class="text-gray-400">Source:</span>
+        <p class="text-gray-200 font-mono break-all mt-1">${note.source}</p>
+      </div>
+      <div>
+        <span class="text-gray-400">Required Signatures:</span>
+        <span class="text-gray-200 ml-2">${note.required_signatures}</span>
+      </div>
+      <div>
+        <span class="text-gray-400">Signers:</span>
+        <div class="mt-1 space-y-1">
+          ${note.signers.map(signer => `
+            <p class="text-gray-200 font-mono text-xs break-all bg-gray-800 p-2 rounded">${signer}</p>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `
+  
+  noteDiv.appendChild(header)
+  noteDiv.appendChild(details)
+  
+  return noteDiv
+}
+
+// Toggle note details visibility
+function toggleDetails(index) {
+  const details = document.getElementById(`details-${index}`)
+  const arrow = document.getElementById(`arrow-${index}`)
+  
+  if (details.classList.contains('hidden')) {
+    details.classList.remove('hidden')
+    arrow.style.transform = 'rotate(180deg)'
+  } else {
+    details.classList.add('hidden')
+    arrow.style.transform = 'rotate(0deg)'
+  }
+}
+
+// Truncate long strings
+function truncateString(str, maxLength) {
+  if (str.length <= maxLength) return str
+  return str.substring(0, maxLength) + '...'
 }
 
 // Show Send Transaction Modal
@@ -483,7 +510,7 @@ function showSendTxModal(useSelectedNotes = false) {
   if (useSelectedNotes && selectedNotes.size > 0) {
     // Calculate total amount from selected notes minus fee
     const totalNick = Array.from(selectedNotes).reduce((sum, index) => {
-      return sum + allNotes[index].value // Changed from .assets to .value
+      return sum + allNotes[index].assets
     }, 0)
     
     const feeNick = parseInt(document.getElementById('feeInput').value || 10)
@@ -803,39 +830,9 @@ async function showSeedphrase() {
   }
 }
 
-// Add missing utility function
-function truncateString(str, maxLength) {
-  if (str.length <= maxLength) return str
-  return str.substring(0, maxLength) + '...'
-}
-
-// Toggle note details
-function toggleNoteDetails(index) {
-  const details = document.getElementById(`details-${index}`)
-  const arrow = document.getElementById(`arrow-${index}`)
-  
-  if (details.classList.contains('hidden')) {
-    details.classList.remove('hidden')
-    arrow.style.transform = 'rotate(180deg)'
-  } else {
-    details.classList.add('hidden')
-    arrow.style.transform = 'rotate(0deg)'
-  }
-}
-
-// Handle note checkbox change
-function handleNoteCheckboxChange(index, checked) {
-  if (checked) {
-    selectedNotes.add(index)
-  } else {
-    selectedNotes.delete(index)
-  }
-  updateSendSelectedButton()
-}
-
 // Make functions globally accessible for onclick handlers
-window.toggleNoteDetails = toggleNoteDetails  // Changed from toggleDetails
-window.handleNoteCheckboxChange = handleNoteCheckboxChange  // Changed from handleNoteCheckbox
+window.toggleNoteDetails = toggleDetails
+window.handleNoteCheckboxChange = handleNoteCheckbox
 window.switchView = switchView
 window.importKeysFromFile = importKeysFromFile
 window.importKeysFromSeedphrase = importKeysFromSeedphrase
@@ -846,7 +843,7 @@ document.getElementById('updateBalanceBtn').addEventListener('click', updateBala
 document.getElementById('sendTxBtn').addEventListener('click', () => showSendTxModal(false))
 document.getElementById('sendSelectedBtn').addEventListener('click', () => showSendTxModal(true))
 document.getElementById('exportKeysBtn').addEventListener('click', exportKeys)
-document.getElementById('importFile').addEventListener('change', (e) => importKeysFromFile(e.target))  // Changed from 'importFile'
+document.getElementById('importFile').addEventListener('change', (e) => importKeys(e.target))
 
 // View tabs event listeners
 notesViewTab.addEventListener('click', () => switchView('notes'))
