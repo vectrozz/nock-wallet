@@ -52,7 +52,7 @@ def get_wallet_public_key():
             capture_output=True,
             text=True,
             check=True,
-            timeout=30
+            timeout=60
         )
         
         output = result.stdout
@@ -225,7 +225,7 @@ def get_wallet_balance():
                 # Extract name (can be multiline, between brackets)
                 name_match = re.search(r'- Name:\s*\[(.*?)\]', section, re.DOTALL)
                 if name_match:
-                    name = name_match.group(1).strip().replace('\n', '').replace(' ', '')
+                    name = name_match.group(1).strip().replace('\n', '')
                 else:
                     name = "Unknown"
                 
@@ -354,7 +354,7 @@ def create_transaction():
             for note in notes:
                 if note['name'] in selected_note_names:
                     selected_notes.append(note)
-                    accumulated += note['assets']
+                    accumulated += note['value']  # Changed from note['assets']
             
             if not selected_notes:
                 return jsonify({"error": "No valid notes found from selection."}), 400
@@ -365,40 +365,54 @@ def create_transaction():
                 if amount_nick <= 0:
                     return jsonify({
                         "error": f"Selected notes ({accumulated} nick) don't have enough to cover the fee ({fee_nick} nick)."
-                    }, 400)
+                    }), 400
                 logger.info(f"Using all funds from selected notes: {accumulated} nick - {fee_nick} fee = {amount_nick} nick to send")
+                
+                # UPDATE: Recalculate amount_nock for display purposes
+                amount_nock = amount_nick / 65536
+                logger.info(f"Adjusted amount: {amount_nock:.4f} NOCK ({amount_nick} nick)")
+                
         else:
-            # Auto-select notes - Sort by assets descending to minimize number of inputs
+            # Auto-select notes - Sort by value descending to minimize number of inputs
             total_needed = amount_nick + fee_nick
-            sorted_notes = sorted(notes, key=lambda x: x['assets'], reverse=True)
+            sorted_notes = sorted(notes, key=lambda x: x['value'], reverse=True)  # Changed from x['assets']
             
             for note in sorted_notes:
                 if accumulated >= total_needed:
                     break
                 selected_notes.append(note)
-                accumulated += note['assets']
+                accumulated += note['value']  # Changed from note['assets']
             
             if accumulated < total_needed:
                 return jsonify({
                     "error": f"Insufficient funds. Need {total_needed} nick, have {accumulated} nick."
                 }), 400
+
+        # Build the names parameter like in the working script
+        # Format: "[note1],[note2],[note3]" (each note in brackets, separated by commas)
+        names_parts = []
+        for note in selected_notes:
+            note_name = note['name']
+            # Add brackets around each note name
+            names_parts.append(f"[{note_name}]")
         
-        # Build the names parameter - Format: [note1],[note2],[note3]
-        names_parts = [f"[{note['name']}]" for note in selected_notes]
         names_string = ",".join(names_parts)
         
         logger.info(f"Selected {len(selected_notes)} notes:")
         for i, note in enumerate(selected_notes):
-            note_nock = note['assets'] / 65536
-            logger.info(f"  - Note #{i+1}: {note_nock:.4f} NOCK ({note['assets']} NICK)")
-        logger.info(f"Total: {accumulated} NICK")
-        logger.info(f"Names string: {names_string}")
-        
-        # Get current tx files before creating transaction
+            note_nock = note['value'] / 65536
+            logger.info(f"  - Note #{i+1}: {note_nock:.4f} NOCK ({note['value']} NICK)")
+            logger.info(f"    Name: {note['name'][:50]}...")
+        logger.info(f"Total notes value: {accumulated} NICK")
+        logger.info(f"Amount to send: {amount_nick} NICK (after {fee_nick} fee)")
+        logger.info(f"Names string: {names_string[:200]}...")
+
+        # Get current transaction files before creating new one
         old_tx_files = get_tx_files_in_folder()
         logger.info(f"Existing transaction files before creation: {len(old_tx_files)}")
         
-        # Execute create-tx command
+        
+        # Execute create-tx command 
         cmd = WALLET_CMD_PREFIX + [
             "create-tx",
             "--names", names_string,
@@ -408,23 +422,82 @@ def create_transaction():
         ]
         logger.info("Creating transaction with command: %s", " ".join(cmd))
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        
-        # Parse output to extract transaction name (which is the hash)
-        output = result.stdout
-        logger.info("Transaction creation output: %s", output)
-        tx_name_match = re.search(r"Name: ([^\n]+)", output)
-        tx_name = tx_name_match.group(1).strip() if tx_name_match else None
-        
-        if not tx_name:
-            return jsonify({"error": "Failed to extract transaction name from output."}, 500)
-        
-        logger.info(f"Transaction name extracted from output: {tx_name}")
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=120  # Add timeout
+            )
+            
+            # Parse output to extract transaction name (which is the hash)
+            output = result.stdout
+            logger.info("=== FULL CREATE-TX OUTPUT ===")
+            logger.info(output)
+            logger.info("=== END OUTPUT ===")
+            
+            # Let's also check stderr
+            if result.stderr:
+                logger.info("=== CREATE-TX STDERR ===")
+                logger.info(result.stderr)
+                logger.info("=== END STDERR ===")
+            
+            # Check what files exist in txs folder after command
+            current_tx_files = get_tx_files_in_folder()
+            logger.info(f"TX files after create-tx: {list(current_tx_files.keys())}")
+            
+            # Try different patterns to extract transaction name
+            patterns = [
+                r"Name: ([^\n]+)",
+                r"Transaction: ([^\n]+)", 
+                r"Hash: ([^\n]+)",
+                r"Created: ([^\n]+)",
+                r"File: ([^\n]+)",
+                r"([A-Za-z0-9]{50,})"  # Any long alphanumeric string
+            ]
+            
+            tx_name = None
+            for pattern in patterns:
+                match = re.search(pattern, output)
+                if match:
+                    tx_name = match.group(1).strip()
+                    logger.info(f"Found potential tx name with pattern '{pattern}': {tx_name}")
+                    break
+            
+            if not tx_name:
+                logger.error("Could not extract transaction name from any pattern")
+                # Return the full output for debugging
+                return jsonify({
+                    "error": "Failed to extract transaction name from output.",
+                    "debug_output": output,
+                    "debug_stderr": result.stderr,
+                    "tx_files_after": list(current_tx_files.keys())
+                }), 500
+            
+        except subprocess.TimeoutExpired:
+            logger.error("CREATE-TX TIMEOUT after 60 seconds")
+            return jsonify({"error": "Transaction creation timed out"}), 500
+            
+        except subprocess.CalledProcessError as e:
+            logger.error(f"CREATE-TX FAILED: return code {e.returncode}")
+            logger.error(f"STDOUT: {e.stdout}")
+            logger.error(f"STDERR: {e.stderr}")
+            return jsonify({
+                "error": f"Transaction creation failed: {e.stderr or e.stdout}",
+                "return_code": e.returncode
+            }), 500
+            
+        except Exception as e:
+            logger.error(f"UNEXPECTED ERROR in create-tx: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                "error": f"Unexpected error: {str(e)}"
+            }), 500
+
+        # Continue with the rest if successful...
+        logger.info(f"Transaction name extracted: {tx_name}")
         
         # Verify that the transaction file was created with the correct name
         file_verified = verify_transaction_file(tx_name, old_tx_files)
