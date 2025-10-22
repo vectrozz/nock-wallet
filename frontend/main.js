@@ -2,7 +2,7 @@ import './style.css'
 import axios from 'axios'
 
 // Use environment variable or fallback
-const API_BASE = 'http://127.0.0.1:5007'  // Force l'adresse IP locale
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5007';
 
 // DOM Elements
 const loadingDisplay = document.getElementById('loadingDisplay')
