@@ -141,6 +141,8 @@ source $HOME/.cargo/env
 
 ### Step 2: Install nockchain-wallet CLI
 
+Option 1 : Build from source - Recommended
+
 ```bash
 # Clone the Nockchain repository
 git clone https://github.com/zorp-corp/nockchain.git
@@ -172,7 +174,23 @@ Then reload your shell:
 source ~/.bashrc  # or source ~/.zshrc
 ```
 
-### Step 3: Clone this repository
+Option 2 : Use binary provided in wallet folder
+
+```bash
+# Clone the Nockchain repository
+git clone https://github.com/vectrozz/nock-wallet.git
+cd ~/nock-wallet/wallet
+```
+
+```bash
+echo 'export PATH="$HOME/nock-wallet/wallet:$PATH"' >> ~/.bashrc
+```
+
+```bash
+source ~/.bashrc
+```
+
+### Step 3: Clone this repository (only if Option 1 in step 2)
 
 ```bash
 # Navigate back to your projects directory
