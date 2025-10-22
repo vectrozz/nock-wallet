@@ -44,44 +44,29 @@ else:
 os.makedirs(app.config['TX_FOLDER'], exist_ok=True)
 
 def get_wallet_public_key():
-    """Get the wallet's public key using show-master-pubkey."""
+    """Get the wallet's public key."""
     try:
-        cmd = WALLET_CMD_PREFIX + ['show-master-pubkey']
+        cmd = WALLET_CMD_PREFIX + ['show-key']
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            check=True,
-            timeout=30
+            check=True
         )
         
         output = result.stdout
-        logger.info(f"Master pubkey command output received: {len(output)} chars")
+        # Extract public key from output
+        key_match = re.search(r"Public Key: ([^\n]+)", output)
+        if key_match:
+            public_key = key_match.group(1).strip()
+            logger.info(f"Wallet public key: {public_key}")
+            return public_key
         
-        # Extract the Corresponding Address
-        address_match = re.search(r'- Corresponding Address:\s*\n\s*([^\n]+)', output, re.MULTILINE)
-        if address_match:
-            address = address_match.group(1).strip()
-            logger.info(f"Wallet address extracted: {address[:50]}...")
-            return address
-        
-        # Fallback: try to find any long address-like string
-        lines = output.split('\n')
-        for line in lines:
-            line = line.strip()
-            # Look for long alphanumeric strings that look like addresses
-            if len(line) > 80 and line.isalnum():
-                logger.info(f"Wallet address (fallback): {line[:50]}...")
-                return line
-        
-        logger.warning("Could not extract wallet address from output")
+        logger.warning("Could not extract public key from show-key output")
         return None
         
     except subprocess.CalledProcessError as e:
-        logger.error(f"Error getting wallet master pubkey: {e.stderr}")
-        return None
-    except Exception as e:
-        logger.error(f"Unexpected error getting wallet pubkey: {str(e)}")
+        logger.error(f"Error getting wallet public key: {e.stderr}")
         return None
 
 def get_tx_files_in_folder():
@@ -565,80 +550,35 @@ def send_transaction():
 
 @app.route("/api/transaction-history")
 def get_transaction_history():
-    """Get transaction history filtered by current wallet's address."""
+    """Get transaction history filtered by current wallet's signer."""
     try:
-        # Load transaction history from file
         history = load_transaction_history()
         
-        # Get current wallet's address
-        current_address = get_wallet_public_key()
+        # Get current wallet's public key
+        current_signer = get_wallet_public_key()
         
-        if not current_address:
-            logger.warning("Could not determine current wallet address, returning all transactions")
+        if not current_signer:
             return jsonify({
-                "success": True,
-                "transactions": history,
-                "count": len(history),
-                "wallet_address": "Unknown",
-                "note": "Could not filter by wallet - showing all transactions"
-            })
+                "success": False,
+                "error": "Could not determine current wallet's public key"
+            }), 500
         
         # Filter history to only show transactions from current wallet
-        # The transaction should have 'signer' field matching our wallet address
-        filtered_history = []
-        for tx in history:
-            tx_signer = tx.get('signer', '')
-            if tx_signer == current_address:
-                filtered_history.append(tx)
+        filtered_history = [tx for tx in history if tx.get('signer') == current_signer]
         
-        logger.info(f"Transaction history: {len(filtered_history)} transactions found for current wallet out of {len(history)} total")
-        logger.info(f"Current wallet address: {current_address[:50]}...")
+        logger.info(f"Transaction history filtered: {len(filtered_history)} out of {len(history)} transactions for signer: {current_signer[:20]}...")
         
         return jsonify({
             "success": True,
             "transactions": filtered_history,
             "count": len(filtered_history),
-            "total_in_file": len(history),
-            "wallet_address": current_address
-        })
-        
-    except FileNotFoundError:
-        logger.info("No transaction history file found")
-        return jsonify({
-            "success": True,
-            "transactions": [],
-            "count": 0,
-            "note": "No transaction history file found"
+            "signer": current_signer
         })
     except Exception as e:
-        logger.error(f"Transaction history error: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return jsonify({
             "success": False,
             "error": str(e)
         }), 500
-
-def load_transaction_history():
-    """Load transaction history from JSON file."""
-    history_file = os.path.join(os.path.dirname(__file__), 'wallet_history.json')
-    
-    if not os.path.exists(history_file):
-        logger.info(f"Transaction history file not found: {history_file}")
-        return []
-    
-    try:
-        with open(history_file, 'r') as f:
-            history = json.load(f)
-        
-        logger.info(f"Loaded {len(history)} transactions from history file")
-        return history
-    except json.JSONDecodeError as e:
-        logger.error(f"Error parsing transaction history JSON: {str(e)}")
-        return []
-    except Exception as e:
-        logger.error(f"Error loading transaction history: {str(e)}")
-        return []
 
 @app.route("/api/export-keys")
 def export_keys():
