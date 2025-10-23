@@ -160,6 +160,14 @@ function createHistoryItem(tx, index) {
       <div class="text-sm text-gray-400 font-mono truncate">
         Hash: ${tx.hash}
       </div>
+      <a href="https://nockblocks.com/tx/${tx.hash}" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          onclick="event.stopPropagation()"
+          class="text-blue-400 hover:text-blue-300 transition-colors text-xs px-2 py-1 bg-blue-900/30 rounded border border-blue-600/30 hover:border-blue-500/50"
+          title="View on NockBlocks Explorer">
+        🔗 Explorer
+      </a>
     </div>
     <div class="flex items-center gap-4 ml-4">
       <div class="text-right">
@@ -186,7 +194,16 @@ function createHistoryItem(tx, index) {
     <div class="space-y-3 text-sm">
       <div>
         <span class="text-gray-400">Transaction Hash:</span>
-        <p class="text-gray-200 font-mono break-all mt-1 bg-gray-800 p-2 rounded">${tx.hash}</p>
+        <div class="flex items-center gap-2 mt-1">
+          <p class="text-gray-200 font-mono break-all bg-gray-800 p-2 rounded flex-1">${tx.hash}</p>
+          <a href="https://nockblocks.com/tx/${tx.hash}" 
+             target="_blank" 
+             rel="noopener noreferrer"
+             class="text-blue-400 hover:text-blue-300 transition-colors text-xs px-3 py-2 bg-blue-900/30 rounded border border-blue-600/30 hover:border-blue-500/50 whitespace-nowrap"
+             title="View on NockBlocks Explorer">
+            🔗 View on Explorer
+          </a>
+        </div>
       </div>
       <div>
         <span class="text-gray-400">Recipient:</span>
