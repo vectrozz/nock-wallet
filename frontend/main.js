@@ -48,18 +48,14 @@ function switchView(view) {
   currentView = view
   
   if (view === 'notes') {
-    notesViewTab.classList.add('bg-blue-600', 'text-white')
-    notesViewTab.classList.remove('bg-gray-700', 'text-gray-300')
-    historyViewTab.classList.remove('bg-blue-600', 'text-white')
-    historyViewTab.classList.add('bg-gray-700', 'text-gray-300')
+    notesViewTab.classList.add('tab-active')
+    historyViewTab.classList.remove('tab-active')
     
     notesView.classList.remove('hidden')
     historyView.classList.add('hidden')
   } else if (view === 'history') {
-    historyViewTab.classList.add('bg-blue-600', 'text-white')
-    historyViewTab.classList.remove('bg-gray-700', 'text-gray-300')
-    notesViewTab.classList.remove('bg-blue-600', 'text-white')
-    notesViewTab.classList.add('bg-gray-700', 'text-gray-300')
+    historyViewTab.classList.add('tab-active')
+    notesViewTab.classList.remove('tab-active')
     
     notesView.classList.add('hidden')
     historyView.classList.remove('hidden')
@@ -86,17 +82,17 @@ function formatDate(isoString) {
 // Get status badge color
 function getStatusBadge(status) {
   const colors = {
-    'created': 'bg-yellow-600',
-    'signed': 'bg-blue-600',
-    'sent': 'bg-green-600'
+    'created': 'status-created',
+    'signed': 'status-signed',
+    'sent': 'status-sent'
   }
-  return colors[status] || 'bg-gray-600'
+  return colors[status] || 'bg-gray-100 text-gray-800 border border-gray-200'
 }
 
 // Load transaction history
 async function loadTransactionHistory() {
   try {
-    historyList.innerHTML = '<div class="text-center text-gray-400 py-8">Loading history...</div>'
+    historyList.innerHTML = '<div class="text-center text-slate-500 py-12">Loading history...</div>'
     
     const response = await axios.get(`${API_BASE}/api/transaction-history`)
     
@@ -105,12 +101,10 @@ async function loadTransactionHistory() {
       
       if (transactions.length === 0) {
         historyList.innerHTML = `
-          <div class="text-center text-gray-400 py-12">
-            <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-            </svg>
-            <p class="text-lg">No transactions yet</p>
-            <p class="text-sm mt-2">Your transaction history will appear here</p>
+          <div class="text-center text-slate-500 py-16">
+            <div class="text-6xl mb-4 opacity-50">📜</div>
+            <p class="text-xl mb-2">No transactions yet</p>
+            <p class="text-sm">Your transaction history will appear here</p>
           </div>
         `
         return
@@ -129,9 +123,10 @@ async function loadTransactionHistory() {
     }
   } catch (error) {
     historyList.innerHTML = `
-      <div class="text-center text-red-400 py-8">
-        <p>Error loading history</p>
-        <p class="text-sm mt-2">${error.message}</p>
+      <div class="text-center text-red-500 py-12">
+        <div class="text-4xl mb-4">⚠️</div>
+        <p class="text-lg mb-2">Error loading history</p>
+        <p class="text-sm text-slate-600">${error.message}</p>
       </div>
     `
   }
@@ -140,47 +135,49 @@ async function loadTransactionHistory() {
 // Create history item
 function createHistoryItem(tx, index) {
   const txDiv = document.createElement('div')
-  txDiv.className = 'bg-gray-800 rounded-lg overflow-hidden mb-3'
+  txDiv.className = 'border-b border-slate-100 last:border-b-0 history-item'
   
   const statusBadge = getStatusBadge(tx.status)
   
   // Main header
   const header = document.createElement('div')
-  header.className = 'flex justify-between items-center px-4 py-3 hover:bg-gray-700 transition-colors cursor-pointer'
+  header.className = 'flex justify-between items-center px-6 py-4 hover:bg-slate-50 transition-colors cursor-pointer'
   header.onclick = () => toggleHistoryDetails(index)
   
   header.innerHTML = `
     <div class="flex-1">
-      <div class="flex items-center gap-3 mb-2">
-        <span class="px-3 py-1 rounded text-xs font-semibold ${statusBadge} text-white uppercase">
-          ${tx.status}
+      <div class="flex items-center gap-3 mb-3">
+        <span class="px-3 py-1 rounded-full text-xs font-semibold ${statusBadge}">
+          ${tx.status.toUpperCase()}
         </span>
-        <span class="text-xs text-gray-400">${formatDate(tx.created_at)}</span>
+        <span class="text-xs text-slate-500">${formatDate(tx.created_at)}</span>
       </div>
-      <div class="text-sm text-gray-400 font-mono truncate">
-        Hash: ${tx.hash}
+      <div class="flex items-center gap-3 mb-2">
+        <div class="text-sm text-slate-600 font-mono truncate max-w-xs">
+          Hash: ${tx.hash}
+        </div>
+        <a href="https://nockblocks.com/tx/${tx.hash}" 
+           target="_blank" 
+           rel="noopener noreferrer"
+           onclick="event.stopPropagation()"
+           class="explorer-link"
+           title="View on NockBlocks Explorer">
+          🔗 Explorer
+        </a>
       </div>
-      <a href="https://nockblocks.com/tx/${tx.hash}" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          onclick="event.stopPropagation()"
-          class="text-blue-400 hover:text-blue-300 transition-colors text-xs px-2 py-1 bg-blue-900/30 rounded border border-blue-600/30 hover:border-blue-500/50"
-          title="View on NockBlocks Explorer">
-        🔗 Explorer
-      </a>
     </div>
     <div class="flex items-center gap-4 ml-4">
       <div class="text-right">
-        <div>
-          <span class="text-2xl font-bold text-green-400">${tx.amount_nock}</span>
-          <span class="text-xs text-gray-400 ml-1">nock</span>
+        <div class="mb-1">
+          <span class="text-2xl font-bold text-green-600">${tx.amount_nock}</span>
+          <span class="text-sm text-slate-500 ml-1">nock</span>
         </div>
         <div>
-          <span class="text-sm text-gray-400">${tx.amount_nick.toLocaleString()}</span>
-          <span class="text-xs text-gray-500 ml-1">nick</span>
+          <span class="text-sm text-slate-600">${tx.amount_nick.toLocaleString()}</span>
+          <span class="text-xs text-slate-500 ml-1">nick</span>
         </div>
       </div>
-      <svg id="history-arrow-${index}" class="w-5 h-5 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg id="history-arrow-${index}" class="w-5 h-5 text-slate-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
       </svg>
     </div>
@@ -189,60 +186,60 @@ function createHistoryItem(tx, index) {
   // Details section (hidden by default)
   const details = document.createElement('div')
   details.id = `history-details-${index}`
-  details.className = 'hidden px-4 py-3 bg-gray-900 border-t border-gray-700'
+  details.className = 'hidden px-6 py-4 bg-slate-50 border-t border-slate-200'
   details.innerHTML = `
-    <div class="space-y-3 text-sm">
+    <div class="space-y-4 text-sm">
       <div>
-        <span class="text-gray-400">Transaction Hash:</span>
-        <div class="flex items-center gap-2 mt-1">
-          <p class="text-gray-200 font-mono break-all bg-gray-800 p-2 rounded flex-1">${tx.hash}</p>
+        <span class="text-slate-600 font-medium">Transaction Hash:</span>
+        <div class="flex items-center gap-3 mt-2">
+          <p class="text-slate-800 font-mono break-all bg-white p-3 rounded-lg border flex-1 text-xs">${tx.hash}</p>
           <a href="https://nockblocks.com/tx/${tx.hash}" 
              target="_blank" 
              rel="noopener noreferrer"
-             class="text-blue-400 hover:text-blue-300 transition-colors text-xs px-3 py-2 bg-blue-900/30 rounded border border-blue-600/30 hover:border-blue-500/50 whitespace-nowrap"
+             class="explorer-link whitespace-nowrap"
              title="View on NockBlocks Explorer">
             🔗 View on Explorer
           </a>
         </div>
       </div>
       <div>
-        <span class="text-gray-400">Recipient:</span>
-        <p class="text-gray-200 font-mono break-all mt-1 bg-gray-800 p-2 rounded">${tx.recipient}</p>
+        <span class="text-slate-600 font-medium">Recipient:</span>
+        <p class="text-slate-800 font-mono break-all mt-2 bg-white p-3 rounded-lg border text-xs">${tx.recipient}</p>
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <div>
-          <span class="text-gray-400">Amount:</span>
-          <p class="text-gray-200 mt-1">
+        <div class="bg-white p-3 rounded-lg border">
+          <span class="text-slate-600 font-medium text-xs">Amount:</span>
+          <p class="text-slate-800 mt-1 font-semibold">
             ${tx.amount_nock} nock<br>
-            <span class="text-sm text-gray-400">${tx.amount_nick.toLocaleString()} nick</span>
+            <span class="text-sm text-slate-600 font-normal">${tx.amount_nick.toLocaleString()} nick</span>
           </p>
         </div>
-        <div>
-          <span class="text-gray-400">Fee:</span>
-          <p class="text-gray-200 mt-1">
+        <div class="bg-white p-3 rounded-lg border">
+          <span class="text-slate-600 font-medium text-xs">Fee:</span>
+          <p class="text-slate-800 mt-1 font-semibold">
             ${nickToNock(tx.fee_nick)} nock<br>
-            <span class="text-sm text-gray-400">${tx.fee_nick.toLocaleString()} nick</span>
+            <span class="text-sm text-slate-600 font-normal">${tx.fee_nick.toLocaleString()} nick</span>
           </p>
         </div>
       </div>
-      <div>
-        <span class="text-gray-400">Notes Used:</span>
-        <span class="text-gray-200 ml-2">${tx.notes_used}</span>
+      <div class="bg-white p-3 rounded-lg border">
+        <span class="text-slate-600 font-medium text-xs">Notes Used:</span>
+        <span class="text-slate-800 ml-2 font-semibold">${tx.notes_used}</span>
       </div>
       <div class="grid grid-cols-2 gap-4">
-        <div>
-          <span class="text-gray-400">Created:</span>
-          <p class="text-gray-200 text-xs mt-1">${formatDate(tx.created_at)}</p>
+        <div class="bg-white p-3 rounded-lg border">
+          <span class="text-slate-600 font-medium text-xs">Created:</span>
+          <p class="text-slate-800 text-xs mt-1">${formatDate(tx.created_at)}</p>
         </div>
-        <div>
-          <span class="text-gray-400">Last Updated:</span>
-          <p class="text-gray-200 text-xs mt-1">${formatDate(tx.updated_at)}</p>
+        <div class="bg-white p-3 rounded-lg border">
+          <span class="text-slate-600 font-medium text-xs">Last Updated:</span>
+          <p class="text-slate-800 text-xs mt-1">${formatDate(tx.updated_at)}</p>
         </div>
       </div>
       ${tx.sent_at ? `
-        <div>
-          <span class="text-gray-400">Sent:</span>
-          <p class="text-gray-200 text-xs mt-1">${formatDate(tx.sent_at)}</p>
+        <div class="bg-green-50 p-3 rounded-lg border border-green-200">
+          <span class="text-green-700 font-medium text-xs">Sent:</span>
+          <p class="text-green-800 text-xs mt-1">${formatDate(tx.sent_at)}</p>
         </div>
       ` : ''}
     </div>
@@ -268,7 +265,133 @@ function toggleHistoryDetails(index) {
   }
 }
 
-// Update Balance Function
+// Load active address
+async function loadActiveAddress() {
+  try {
+    const response = await axios.get(`${API_BASE}/api/active-address`)
+    
+    if (response.data.success) {
+      const activeAddressElem = document.getElementById('activeAddress')
+      const activeAddressVersionElem = document.getElementById('activeAddressVersion')
+      
+      if (activeAddressElem) {
+        activeAddressElem.textContent = response.data.active_address
+      }
+      
+      if (activeAddressVersionElem) {
+        activeAddressVersionElem.textContent = `v${response.data.version}`
+      }
+    }
+  } catch (error) {
+    console.error('Error loading active address:', error)
+    const activeAddressElem = document.getElementById('activeAddress')
+    if (activeAddressElem) {
+      activeAddressElem.textContent = 'Error loading address'
+      activeAddressElem.classList.add('text-red-600')
+    }
+  }
+}
+
+// Load all master addresses
+async function loadAllMasterAddresses() {
+  try {
+    addressesList.innerHTML = `
+      <div class="text-center text-slate-500 py-8">
+        <div class="loading-spinner-dark mx-auto mb-4"></div>
+        <p>Loading addresses...</p>
+      </div>
+    `
+    
+    const response = await axios.get(`${API_BASE}/api/list-master-addresses`)
+    
+    if (response.data.success && response.data.addresses.length > 0) {
+      addressesList.innerHTML = ''
+      
+      response.data.addresses.forEach((addr, index) => {
+        const addressCard = document.createElement('div')
+        addressCard.className = `bg-white rounded-lg border-2 p-4 transition-all duration-200 ${
+          addr.is_active ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
+        }`
+        
+        addressCard.innerHTML = `
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs font-semibold text-slate-600 uppercase">Address ${index + 1}</span>
+                <span class="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-full">v${addr.version}</span>
+                ${addr.is_active ? '<span class="px-2 py-0.5 bg-blue-500 text-white text-xs font-semibold rounded-full">Active</span>' : ''}
+              </div>
+              <code class="text-sm font-mono text-slate-800 break-all block">${addr.address}</code>
+            </div>
+            <button 
+              onclick="window.copyToClipboard('${addr.address}')" 
+              class="btn-secondary text-xs px-3 py-2 flex-shrink-0"
+              title="Copy to clipboard">
+              📋 Copy
+            </button>
+          </div>
+        `
+        
+        addressesList.appendChild(addressCard)
+      })
+    } else {
+      addressesList.innerHTML = `
+        <div class="text-center text-slate-500 py-8">
+          <div class="text-4xl mb-4 opacity-50">📭</div>
+          <p class="text-lg">No addresses found</p>
+        </div>
+      `
+    }
+  } catch (error) {
+    console.error('Error loading master addresses:', error)
+    addressesList.innerHTML = `
+      <div class="text-center text-red-500 py-8">
+        <div class="text-4xl mb-4">⚠️</div>
+        <p class="text-lg mb-2">Error loading addresses</p>
+        <p class="text-sm text-slate-600">${error.message}</p>
+      </div>
+    `
+  }
+}
+
+// Show all addresses modal
+function showAllAddressesModal() {
+  allAddressesModal.classList.remove('hidden')
+  loadAllMasterAddresses()
+}
+
+// Close all addresses modal
+function closeAllAddressesModal() {
+  allAddressesModal.classList.add('hidden')
+}
+
+// Copy to clipboard function
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    // Show a temporary success message
+    const toast = document.createElement('div')
+    toast.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-[10000] animate-slideIn'
+    toast.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span class="text-xl">✅</span>
+        <span class="font-semibold">Address copied to clipboard!</span>
+      </div>
+    `
+    document.body.appendChild(toast)
+    
+    setTimeout(() => {
+      toast.style.animation = 'slideOut 0.3s ease-out'
+      setTimeout(() => {
+        document.body.removeChild(toast)
+      }, 300)
+    }, 2000)
+  }).catch(err => {
+    console.error('Failed to copy:', err)
+    alert('Failed to copy address to clipboard')
+  })
+}
+
+// Update Balance Function - Modified to also load active address
 async function updateBalance() {
   try {
     // Show loading animation
@@ -283,7 +406,7 @@ async function updateBalance() {
     balanceDisplay.classList.remove('hidden')
     
     if (data.error) {
-      errorDisplay.textContent = data.error
+      document.getElementById('errorMessage').textContent = data.error
       errorDisplay.classList.remove('hidden')
       balanceContent.classList.add('hidden')
     } else {
@@ -295,11 +418,11 @@ async function updateBalance() {
       // Display total in Nock and Nick
       const totalNock = nickToNock(data.total_assets)
       totalAssets.innerHTML = `
-        <span class="text-4xl">${totalNock}</span>
-        <span class="text-sm text-gray-400 ml-1">nock</span>
+        <span class="text-4xl font-bold">${totalNock}</span>
+        <span class="text-lg text-blue-100 ml-2">nock</span>
         <br>
-        <span class="text-lg text-gray-400">${data.total_assets.toLocaleString()}</span>
-        <span class="text-xs text-gray-500 ml-1">nick</span>
+        <span class="text-lg text-blue-200">${data.total_assets.toLocaleString()}</span>
+        <span class="text-sm text-blue-200 ml-1">nick</span>
       `
       
       // Store all notes
@@ -310,6 +433,9 @@ async function updateBalance() {
       renderNotes()
       
       updateSendSelectedButton()
+      
+      // Load active address
+      loadActiveAddress()
     }
   } catch (error) {
     // Hide loading animation on error
@@ -321,37 +447,37 @@ async function updateBalance() {
 // Create a note item with expandable details
 function createNoteItem(note, index) {
   const noteDiv = document.createElement('div')
-  noteDiv.className = 'bg-gray-800 rounded-lg overflow-hidden mb-2'
+  noteDiv.className = 'border-b border-slate-100 last:border-b-0 note-item'
   
-  const nockAmount = nickToNock(note.value) // Changed from note.assets to note.value
+  const nockAmount = nickToNock(note.value)
   
   // Main clickable header
   const header = document.createElement('div')
-  header.className = 'flex justify-between items-center px-4 py-3 hover:bg-gray-700 transition-colors'
+  header.className = 'flex justify-between items-center px-6 py-4 hover:bg-slate-50 transition-colors'
   
   header.innerHTML = `
-    <div class="flex items-center gap-3 flex-1">
+    <div class="flex items-center gap-4 flex-1">
       <input type="checkbox" 
              id="checkbox-${index}" 
-             class="w-5 h-5 rounded bg-gray-700 border-gray-600 text-yellow-600 focus:ring-yellow-500 cursor-pointer"
+             class="note-checkbox"
              onchange="window.handleNoteCheckboxChange(${index}, this.checked)">
       <div class="flex-1 cursor-pointer" onclick="window.toggleNoteDetails(${index})">
-        <span class="text-sm text-gray-400 font-mono break-all">${truncateString(note.name, 50)}</span>
+        <span class="text-sm text-slate-600 font-mono break-all">${truncateString(note.name, 50)}</span>
       </div>
     </div>
-    <div class="flex items-center gap-4 ml-4 cursor-pointer" onclick="window.toggleNoteDetails(${index})">
-      <span class="text-sm text-blue-400">Block: ${note.block_height}</span>
+    <div class="flex items-center gap-6 ml-4 cursor-pointer" onclick="window.toggleNoteDetails(${index})">
+      <span class="text-sm text-blue-600 font-medium bg-blue-50 px-3 py-1 rounded-full">Block: ${note.block_height}</span>
       <div class="text-right">
-        <div>
-          <span class="text-2xl font-bold text-green-400">${nockAmount}</span>
-          <span class="text-xs text-gray-400 ml-1">nock</span>
+        <div class="mb-1">
+          <span class="text-2xl font-bold text-green-600">${nockAmount}</span>
+          <span class="text-sm text-slate-500 ml-1">nock</span>
         </div>
         <div>
-          <span class="text-sm text-gray-400">${note.value.toLocaleString()}</span>
-          <span class="text-xs text-gray-500 ml-1">nick</span>
+          <span class="text-sm text-slate-600">${note.value.toLocaleString()}</span>
+          <span class="text-xs text-slate-500 ml-1">nick</span>
         </div>
       </div>
-      <svg id="arrow-${index}" class="w-5 h-5 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg id="arrow-${index}" class="w-5 h-5 text-slate-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
       </svg>
     </div>
@@ -360,31 +486,33 @@ function createNoteItem(note, index) {
   // Details section (hidden by default)
   const details = document.createElement('div')
   details.id = `details-${index}`
-  details.className = 'hidden px-4 py-3 bg-gray-900 border-t border-gray-700'
+  details.className = 'hidden px-6 py-4 bg-slate-50 border-t border-slate-200'
   details.innerHTML = `
-    <div class="space-y-2 text-sm">
+    <div class="space-y-4 text-sm">
       <div>
-        <span class="text-gray-400">Full Name:</span>
-        <p class="text-gray-200 font-mono break-all mt-1">${note.name}</p>
+        <span class="text-slate-600 font-medium">Full Name:</span>
+        <p class="text-slate-800 font-mono break-all mt-2 bg-white p-3 rounded-lg border text-xs">${note.name}</p>
       </div>
       <div>
-        <span class="text-gray-400">Source:</span>
-        <p class="text-gray-200 font-mono break-all mt-1">${note.source}</p>
+        <span class="text-slate-600 font-medium">Source:</span>
+        <p class="text-slate-800 font-mono break-all mt-2 bg-white p-3 rounded-lg border text-xs">${note.source}</p>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="bg-white p-3 rounded-lg border">
+          <span class="text-slate-600 font-medium text-xs">Block Height:</span>
+          <span class="text-slate-800 ml-2 font-semibold">${note.block_height}</span>
+        </div>
+        <div class="bg-white p-3 rounded-lg border">
+          <span class="text-slate-600 font-medium text-xs">Value:</span>
+          <p class="text-slate-800 mt-1 font-semibold">
+            ${nockAmount} nock<br>
+            <span class="text-sm text-slate-600 font-normal">${note.value.toLocaleString()} nick</span>
+          </p>
+        </div>
       </div>
       <div>
-        <span class="text-gray-400">Block Height:</span>
-        <span class="text-gray-200 ml-2">${note.block_height}</span>
-      </div>
-      <div>
-        <span class="text-gray-400">Signer:</span>
-        <p class="text-gray-200 font-mono text-xs break-all mt-1 bg-gray-800 p-2 rounded">${note.signer}</p>
-      </div>
-      <div>
-        <span class="text-gray-400">Value:</span>
-        <p class="text-gray-200 mt-1">
-          ${nockAmount} nock<br>
-          <span class="text-sm text-gray-400">${note.value.toLocaleString()} nick</span>
-        </p>
+        <span class="text-slate-600 font-medium">Signer:</span>
+        <p class="text-slate-800 font-mono text-xs break-all mt-2 bg-white p-3 rounded-lg border">${note.signer}</p>
       </div>
     </div>
   `
@@ -402,7 +530,7 @@ function sortNotes(notes) {
     
     if (sortBy === 'block_height') {
       comparison = a.block_height - b.block_height
-    } else if (sortBy === 'value') { // Changed from 'assets' to 'value'
+    } else if (sortBy === 'value') {
       comparison = a.value - b.value
     }
     
@@ -418,17 +546,17 @@ function renderNotes() {
   
   // Add sort controls header
   const sortHeader = document.createElement('div')
-  sortHeader.className = 'bg-gray-700 rounded-lg p-3 mb-3 flex items-center justify-between'
+  sortHeader.className = 'bg-slate-50 border-b border-slate-200 p-4 flex items-center justify-between'
   sortHeader.innerHTML = `
-    <div class="text-sm text-gray-300 font-semibold">Sort by:</div>
-    <div class="flex gap-4">
-      <button id="sortByBlock" class="flex items-center gap-2 px-3 py-1 rounded transition-colors ${sortBy === 'block_height' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}">
+    <div class="text-sm text-slate-700 font-semibold">Sort by:</div>
+    <div class="flex gap-3">
+      <button id="sortByBlock" class="sort-btn ${sortBy === 'block_height' ? 'sort-active' : ''}">
         <span>Block Height</span>
         <svg class="w-4 h-4 ${sortBy === 'block_height' && sortOrder === 'asc' ? 'rotate-180' : ''} transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
         </svg>
       </button>
-      <button id="sortByAmount" class="flex items-center gap-2 px-3 py-1 rounded transition-colors ${sortBy === 'value' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'}">
+      <button id="sortByAmount" class="sort-btn ${sortBy === 'value' ? 'sort-active' : ''}">
         <span>Amount</span>
         <svg class="w-4 h-4 ${sortBy === 'value' && sortOrder === 'asc' ? 'rotate-180' : ''} transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -450,10 +578,10 @@ function renderNotes() {
   })
   
   document.getElementById('sortByAmount').addEventListener('click', () => {
-    if (sortBy === 'value') { // Changed from 'assets' to 'value'
+    if (sortBy === 'value') {
       sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'
     } else {
-      sortBy = 'value' // Changed from 'assets' to 'value'
+      sortBy = 'value'
       sortOrder = 'desc'
     }
     renderNotes()
@@ -480,17 +608,24 @@ function updateSendSelectedButton() {
   sendSelectedBtn.disabled = selectedNotes.size === 0
   if (selectedNotes.size > 0) {
     const totalSelected = Array.from(selectedNotes).reduce((sum, index) => {
-      return sum + allNotes[index].value // Changed from .assets to .value
+      return sum + allNotes[index].value
     }, 0)
     const totalNock = nickToNock(totalSelected)
-    sendSelectedBtn.textContent = `💸 Send Selected (${selectedNotes.size} notes - ${totalNock} nock)`
+    sendSelectedBtn.innerHTML = `
+      <span class="btn-icon">💸</span>
+      <span>Send Selected (${selectedNotes.size} notes - ${totalNock} nock)</span>
+    `
   } else {
-    sendSelectedBtn.textContent = '💸 Send Selected'
+    sendSelectedBtn.innerHTML = `
+      <span class="btn-icon">💸</span>
+      <span>Send Selected</span>
+    `
   }
 }
 
 // Show Send Transaction Modal
 function showSendTxModal(useSelectedNotes = false) {
+  console.log('showSendTxModal called, useSelectedNotes:', useSelectedNotes)
   sendTxModal.classList.remove('hidden')
   resetTxModal()
   
@@ -500,7 +635,7 @@ function showSendTxModal(useSelectedNotes = false) {
   if (useSelectedNotes && selectedNotes.size > 0) {
     // Calculate total amount from selected notes minus fee
     const totalNick = Array.from(selectedNotes).reduce((sum, index) => {
-      return sum + allNotes[index].value // Changed from .assets to .value
+      return sum + allNotes[index].value
     }, 0)
     
     const feeNick = parseInt(document.getElementById('feeInput').value || 10)
@@ -511,11 +646,11 @@ function showSendTxModal(useSelectedNotes = false) {
     const amountInput = document.getElementById('amountInput')
     amountInput.value = availableNock
     amountInput.readOnly = true
-    amountInput.classList.add('bg-gray-600', 'cursor-not-allowed')
+    amountInput.classList.add('bg-slate-100', 'cursor-not-allowed')
     
     // Add info text
     const amountLabel = amountInput.previousElementSibling
-    amountLabel.innerHTML = `Amount (Nock) - <span class="text-yellow-400">Total from ${selectedNotes.size} selected notes</span>`
+    amountLabel.innerHTML = `Amount (Nock) - <span class="text-amber-600 font-medium">Total from ${selectedNotes.size} selected notes</span>`
   }
 }
 
@@ -531,7 +666,7 @@ function resetTxModal() {
   const amountInput = document.getElementById('amountInput')
   amountInput.value = ''
   amountInput.readOnly = false
-  amountInput.classList.remove('bg-gray-600', 'cursor-not-allowed')
+  amountInput.classList.remove('bg-slate-100', 'cursor-not-allowed')
   
   // Reset label
   const amountLabel = amountInput.previousElementSibling
@@ -543,7 +678,9 @@ function resetTxModal() {
 
 // Close Send Transaction Modal
 function closeSendTxModal() {
+  console.log('closeSendTxModal called')
   sendTxModal.classList.add('hidden')
+  resetTxModal()
 }
 
 // Create Transaction
@@ -706,6 +843,19 @@ async function importKeysFromSeedphrase() {
   
   console.log('Importing from seedphrase, version:', version)
   
+  // Get the button element
+  const importBtn = event.target
+  const originalHTML = importBtn.innerHTML
+  
+  // Disable button and show loading state
+  importBtn.disabled = true
+  importBtn.innerHTML = `
+    <div class="flex items-center justify-center gap-2">
+      <div class="loading-spinner-small"></div>
+      <span>Importing seed phrase...</span>
+    </div>
+  `
+  
   try {
     const response = await axios.post(`${API_BASE}/api/import-seedphrase`, {
       seedphrase: seedphrase,
@@ -715,10 +865,18 @@ async function importKeysFromSeedphrase() {
     console.log('Response:', response.data)
     
     if (response.data.success) {
-      alert('✅ ' + response.data.message + '\n\n⏳ Synchronizing wallet, please wait...')
-      
       // Clear seedphrase input for security
       document.getElementById('seedphraseInput').value = ''
+      
+      // Show success message with loading for sync
+      importBtn.innerHTML = `
+        <div class="flex items-center justify-center gap-2">
+          <div class="loading-spinner-small"></div>
+          <span>Synchronizing wallet...</span>
+        </div>
+      `
+      
+      alert('✅ ' + response.data.message + '\n\n⏳ Synchronizing wallet, please wait...')
       
       // Wait for wallet sync
       console.log('Waiting for wallet sync...')
@@ -729,12 +887,23 @@ async function importKeysFromSeedphrase() {
       await updateBalance()
       
       alert('✅ Wallet synchronized! Balance updated.')
+      
+      // Restore button
+      importBtn.disabled = false
+      importBtn.innerHTML = originalHTML
     } else {
+      // Restore button
+      importBtn.disabled = false
+      importBtn.innerHTML = originalHTML
       alert('❌ ' + (response.data.error || 'Unknown error'))
     }
   } catch (error) {
     console.error('Import seedphrase error:', error)
     console.error('Error response:', error.response?.data)
+    
+    // Restore button
+    importBtn.disabled = false
+    importBtn.innerHTML = originalHTML
     alert('❌ Error: ' + (error.response?.data?.error || error.message))
   }
 }
@@ -850,34 +1019,131 @@ function handleNoteCheckboxChange(index, checked) {
   updateSendSelectedButton()
 }
 
-// Make functions globally accessible for onclick handlers
-window.toggleNoteDetails = toggleNoteDetails  // Changed from toggleDetails
-window.handleNoteCheckboxChange = handleNoteCheckboxChange  // Changed from handleNoteCheckbox
+// Make functions globally accessible
+window.toggleNoteDetails = toggleNoteDetails
+window.handleNoteCheckboxChange = handleNoteCheckboxChange
 window.switchView = switchView
 window.importKeysFromFile = importKeysFromFile
 window.importKeysFromSeedphrase = importKeysFromSeedphrase
 window.showSeedphrase = showSeedphrase
+window.copyToClipboard = copyToClipboard
 
-// Attach event listeners
-document.getElementById('updateBalanceBtn').addEventListener('click', updateBalance)
-document.getElementById('sendTxBtn').addEventListener('click', () => showSendTxModal(false))
-document.getElementById('sendSelectedBtn').addEventListener('click', () => showSendTxModal(true))
-document.getElementById('exportKeysBtn').addEventListener('click', exportKeys)
-document.getElementById('importFile').addEventListener('change', (e) => importKeysFromFile(e.target))  // Changed from 'importFile'
+// Event handlers functions
+function handleSendTxBtnClick() {
+  console.log('Send transaction button clicked')
+  showSendTxModal(false)
+}
 
-// View tabs event listeners
-notesViewTab.addEventListener('click', () => switchView('notes'))
-historyViewTab.addEventListener('click', () => switchView('history'))
+function handleSendSelectedBtnClick() {
+  console.log('Send selected button clicked')  
+  showSendTxModal(true)
+}
 
-// Transaction modal event listeners
-document.getElementById('closeSendTxModal').addEventListener('click', closeSendTxModal)
-document.getElementById('closeTxSuccessBtn').addEventListener('click', closeSendTxModal)
-document.getElementById('createTxBtn').addEventListener('click', createTransaction)
-document.getElementById('backToCreateBtn').addEventListener('click', () => {
-  confirmTxStep.classList.add('hidden')
-  createTxStep.classList.remove('hidden')
+function handleCloseSendTxModal() {
+  console.log('Close modal button clicked')
+  closeSendTxModal()
+}
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('DOM Content Loaded')
+  
+  // Make sure modals start hidden
+  if (sendTxModal) {
+    sendTxModal.classList.add('hidden')
+  }
+  if (allAddressesModal) {
+    allAddressesModal.classList.add('hidden')
+  }
+  
+  // Attach event listeners
+  const updateBalanceBtn = document.getElementById('updateBalanceBtn')
+  if (updateBalanceBtn) {
+    updateBalanceBtn.addEventListener('click', updateBalance)
+  }
+  
+  const sendTxBtn = document.getElementById('sendTxBtn')
+  if (sendTxBtn) {
+    sendTxBtn.addEventListener('click', handleSendTxBtnClick)
+  }
+  
+  if (sendSelectedBtn) {
+    sendSelectedBtn.addEventListener('click', handleSendSelectedBtnClick)
+  }
+  
+  const exportKeysBtn = document.getElementById('exportKeysBtn')
+  if (exportKeysBtn) {
+    exportKeysBtn.addEventListener('click', exportKeys)
+  }
+
+  // Check if import file input exists before adding listener
+  const importFileInput = document.getElementById('importFile')
+  if (importFileInput) {
+    importFileInput.addEventListener('change', (e) => importKeysFromFile(e.target))
+  }
+
+  // View tabs event listeners
+  if (notesViewTab) {
+    notesViewTab.addEventListener('click', () => switchView('notes'))
+  }
+  if (historyViewTab) {
+    historyViewTab.addEventListener('click', () => switchView('history'))
+  }
+
+  // Transaction modal event listeners
+  const closeSendTxModalBtn = document.getElementById('closeSendTxModal')
+  if (closeSendTxModalBtn) {
+    closeSendTxModalBtn.addEventListener('click', handleCloseSendTxModal)
+  }
+  
+  const closeTxSuccessBtn = document.getElementById('closeTxSuccessBtn')  
+  if (closeTxSuccessBtn) {
+    closeTxSuccessBtn.addEventListener('click', handleCloseSendTxModal)
+  }
+  
+  const createTxBtn = document.getElementById('createTxBtn')
+  if (createTxBtn) {
+    createTxBtn.addEventListener('click', createTransaction)
+  }
+  
+  const backToCreateBtn = document.getElementById('backToCreateBtn')
+  if (backToCreateBtn) {
+    backToCreateBtn.addEventListener('click', () => {
+      confirmTxStep.classList.add('hidden')
+      createTxStep.classList.remove('hidden')
+    })
+  }
+  
+  const confirmTxBtn = document.getElementById('confirmTxBtn')
+  if (confirmTxBtn) {
+    confirmTxBtn.addEventListener('click', signAndSendTransaction)
+  }
+
+  // All Addresses Modal event listeners
+  const showAllAddressesBtn = document.getElementById('showAllAddressesBtn')
+  if (showAllAddressesBtn) {
+    showAllAddressesBtn.addEventListener('click', showAllAddressesModal)
+  }
+  
+  const closeAllAddressesModalBtn = document.getElementById('closeAllAddressesModal')
+  if (closeAllAddressesModalBtn) {
+    closeAllAddressesModalBtn.addEventListener('click', closeAllAddressesModal)
+  }
+  
+  const closeAllAddressesModalBtn2 = document.getElementById('closeAllAddressesModalBtn')
+  if (closeAllAddressesModalBtn2) {
+    closeAllAddressesModalBtn2.addEventListener('click', closeAllAddressesModal)
+  }
+  
+  // Close modal when clicking outside
+  if (allAddressesModal) {
+    allAddressesModal.addEventListener('click', (e) => {
+      if (e.target === allAddressesModal) {
+        closeAllAddressesModal()
+      }
+    })
+  }
+
+  // Initialize
+  updateBalance()
 })
-document.getElementById('confirmTxBtn').addEventListener('click', signAndSendTransaction)
-
-// Initialize
-updateBalance()

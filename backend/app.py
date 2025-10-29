@@ -962,6 +962,117 @@ def show_seedphrase():
             "details": str(e)
         }), 500
 
+@app.route('/api/active-address', methods=['GET'])
+def get_active_address():
+    """Get the currently active address"""
+    try:
+        cmd = WALLET_CMD_PREFIX + ["list-active-addresses"]
+        logger.info("Getting active address with command: %s", " ".join(cmd))
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30
+        )
+        
+        output = result.stdout
+        logger.info("Active address output: %s", output)
+        
+        # Parse the output to extract active signing address
+        active_address = None
+        active_version = None
+        
+        # Look for address in "Addresses -- Signing" section
+        signing_section = re.search(r'Addresses -- Signing(.*?)(?:Addresses -- Watch only|$)', output, re.DOTALL)
+        if signing_section:
+            address_match = re.search(r'- Address:\s*([^\n]+)', signing_section.group(1))
+            version_match = re.search(r'- Version:\s*(\d+)', signing_section.group(1))
+            
+            if address_match:
+                active_address = address_match.group(1).strip()
+            if version_match:
+                active_version = int(version_match.group(1))
+        
+        if not active_address:
+            return jsonify({
+                "success": False,
+                "error": "No active address found"
+            }), 404
+        
+        return jsonify({
+            "success": True,
+            "active_address": active_address,
+            "version": active_version
+        })
+        
+    except subprocess.TimeoutExpired:
+        logger.error("Command timed out")
+        return jsonify({"success": False, "error": "Command timed out"}), 500
+    except subprocess.CalledProcessError as e:
+        logger.error("Command failed with error: %s", e.stderr)
+        return jsonify({"success": False, "error": e.stderr}), 500
+    except Exception as e:
+        logger.error("Error getting active address: %s", str(e))
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/list-master-addresses', methods=['GET'])
+def list_master_addresses():
+    """List all master addresses"""
+    try:
+        cmd = WALLET_CMD_PREFIX + ["list-master-addresses"]
+        logger.info("Listing master addresses with command: %s", " ".join(cmd))
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30
+        )
+        
+        output = result.stdout
+        logger.info("Master addresses output: %s", output)
+        
+        # Parse the output to extract all addresses
+        addresses = []
+        
+        # Split by separator "―"
+        sections = output.split('―')
+        
+        for section in sections:
+            if 'Address:' in section:
+                address_match = re.search(r'- Address:\s*([^\n]+?)(?:\s*\(active\))?$', section, re.MULTILINE)
+                version_match = re.search(r'- Version:\s*(\d+)', section)
+                is_active = '(active)' in section
+                
+                if address_match:
+                    address = address_match.group(1).strip()
+                    version = int(version_match.group(1)) if version_match else None
+                    
+                    addresses.append({
+                        "address": address,
+                        "version": version,
+                        "is_active": is_active
+                    })
+        
+        return jsonify({
+            "success": True,
+            "addresses": addresses
+        })
+        
+    except subprocess.TimeoutExpired:
+        logger.error("Command timed out")
+        return jsonify({"success": False, "error": "Command timed out"}), 500
+    except subprocess.CalledProcessError as e:
+        logger.error("Command failed with error: %s", e.stderr)
+        return jsonify({"success": False, "error": e.stderr}), 500
+    except Exception as e:
+        logger.error("Error listing master addresses: %s", str(e))
+        return jsonify({"success": False, "error": str(e)}), 500
+
 if __name__ == "__main__":
     host = os.getenv('FLASK_HOST', '0.0.0.0')
     port = int(os.getenv('FLASK_PORT', 5007))

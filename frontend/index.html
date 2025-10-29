@@ -2,265 +2,311 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Nockchain Wallet</title>
+    <title>Nock Wallet</title>
+    <link rel="stylesheet" href="./style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   </head>
-  <body class="bg-gray-900 text-white min-h-screen">
+  <body class="bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 min-h-screen">
     <div id="app" class="container mx-auto px-4 py-8 max-w-7xl">
       <!-- Header -->
-      <div class="text-center mb-8">
-        <h1 class="text-5xl font-bold mb-2">💰 Nockchain Wallet</h1>
-        <p class="text-gray-400">Manage your Nockchain assets</p>
+      <header class="text-center mb-12">
+        <div class="inline-flex items-center gap-3 mb-4">
+          <div class="w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+            <span class="text-2xl">💎</span>
+          </div>
+          <h1 class="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+            Nock Wallet
+          </h1>
+        </div>
+        <p class="text-slate-600 text-lg">Secure blockchain wallet management</p>
+      </header>
+
+      <!-- Loading Display -->
+      <div id="loadingDisplay" class="text-center py-20">
+        <div class="inline-flex flex-col items-center gap-6">
+          <div class="loading-spinner"></div>
+          <div class="text-slate-600 text-lg font-medium">Loading wallet...</div>
+        </div>
       </div>
 
-      <!-- Loading Animation -->
-      <div id="loadingDisplay" class="text-center py-12">
-        <div class="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-yellow-500 mb-4"></div>
-        <p class="text-gray-400">Loading wallet balance...</p>
+      <!-- Error Display -->
+      <div id="errorDisplay" class="hidden mb-8 bg-red-50 border border-red-200 rounded-xl p-6 shadow-sm">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+            <span class="text-red-600 text-xl">⚠️</span>
+          </div>
+          <div>
+            <h3 class="text-red-800 font-semibold text-lg">Error</h3>
+            <p class="text-red-700" id="errorMessage"></p>
+          </div>
+        </div>
       </div>
 
       <!-- Balance Display -->
       <div id="balanceDisplay" class="hidden">
-        <!-- Error Display -->
-        <div id="errorDisplay" class="hidden bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg mb-6">
-          <p class="font-bold">Error</p>
-          <p id="errorMessage"></p>
-        </div>
-
-        <!-- Balance Content -->
         <div id="balanceContent">
-          <!-- Stats Header -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <!-- Total Assets Card -->
-            <div class="bg-gradient-to-br from-yellow-600 to-yellow-800 rounded-lg p-6 shadow-lg">
-              <h2 class="text-xl font-semibold mb-2 text-yellow-100">💎 Total Balance</h2>
-              <div id="totalAssets" class="text-white">
-                <span class="text-4xl">0</span>
-                <span class="text-sm ml-1">nock</span>
+          <!-- Balance Overview Card -->
+          <div class="bg-white rounded-2xl shadow-xl border border-slate-200 mb-8 overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-8">
+              <div class="flex justify-between items-start">
+                <div>
+                  <h2 class="text-2xl font-bold mb-2">Total Balance</h2>
+                  <div id="totalAssets" class="text-4xl font-bold mb-2"></div>
+                  <div class="text-blue-100">
+                    <span id="notesCount"></span> notes available
+                  </div>
+                </div>
+                <div class="text-right space-y-3">
+                  <button id="updateBalanceBtn" class="btn-primary bg-white/20 hover:bg-white/30 backdrop-blur-sm border-white/30">
+                    <span class="btn-icon">🔄</span>
+                    <span>Refresh</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            <!-- Notes Count Card -->
-            <div class="bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg p-6 shadow-lg">
-              <h2 class="text-xl font-semibold mb-2 text-blue-100">📝 Notes</h2>
-              <div class="text-white">
-                <span id="notesCount" class="text-4xl">0</span>
-                <span class="text-sm ml-1">notes</span>
+            <!-- Active Address Section -->
+            <div class="px-8 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-slate-200">
+              <div class="flex items-center justify-between">
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs font-semibold text-slate-600 uppercase tracking-wide">Active Address</span>
+                    <span id="activeAddressVersion" class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full"></span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <code id="activeAddress" class="text-sm font-mono text-slate-800 break-all">Loading...</code>
+                  </div>
+                </div>
+                <div class="ml-4">
+                  <button id="showAllAddressesBtn" class="btn-secondary text-sm px-4 py-2">
+                    <span class="btn-icon text-base">📋</span>
+                    <span>All Addresses</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="p-6 bg-slate-50 border-t border-slate-200">
+              <div class="flex flex-wrap gap-4">
+                <button id="sendTxBtn" class="btn-primary btn-green">
+                  <span class="btn-icon">💸</span>
+                  <span>Send Transaction</span>
+                </button>
+                
+                <button id="exportKeysBtn" class="btn-secondary">
+                  <span class="btn-icon">📤</span>
+                  <span>Export Keys</span>
+                </button>
+                
+                <label for="importFile" class="btn-secondary cursor-pointer">
+                  <span class="btn-icon">📥</span>
+                  <span>Import Keys</span>
+                </label>
+                <input type="file" id="importFile" accept=".export" class="hidden">
+                
+                <button onclick="window.showSeedphrase()" class="btn-secondary">
+                  <span class="btn-icon">🔑</span>
+                  <span>Show Seedphrase</span>
+                </button>
               </div>
             </div>
           </div>
 
-          <!-- Action Buttons -->
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <button id="updateBalanceBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2">
-              <span>🔄</span>
-              <span>Update Balance</span>
-            </button>
-            
-            <button id="sendTxBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2">
-              <span>💸</span>
-              <span>Send Transaction</span>
-            </button>
-            
-            <button id="exportKeysBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2">
-              <span>📤</span>
-              <span>Export Keys</span>
-            </button>
-            
-            <label class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2 cursor-pointer">
-              <span>📥</span>
-              <span>Import Keys</span>
-              <input type="file" id="importFile" class="hidden" accept=".export">
-            </label>
+          <!-- Import from Seedphrase Card -->
+          <div class="bg-white rounded-2xl shadow-lg border border-slate-200 mb-8 p-6">
+            <h3 class="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <span class="text-2xl">🌱</span>
+              Import from Seedphrase
+            </h3>
+            <div class="space-y-4 w-full">
+              <div class="w-full">
+                <label class="block text-sm font-medium text-slate-700 mb-2">Seed Phrase</label>
+                <textarea 
+                  id="seedphraseInput" 
+                  placeholder="Enter your seed phrase here..."
+                  class="input-field h-24 resize-none w-full"
+                ></textarea>
+              </div>
+              <div class="w-full">
+                <label class="block text-sm font-medium text-slate-700 mb-2">Version</label>
+                <select id="seedphraseVersion" class="input-field w-full">
+                  <option value="">Select version</option>
+                  <option value="0">Version 0</option>
+                  <option value="1">Version 1</option>
+                </select>
+              </div>
+              <button onclick="window.importKeysFromSeedphrase()" class="btn-primary btn-indigo w-full" id="importSeedphraseBtn">
+                <span class="btn-icon">🚀</span>
+                <span>Import from Seedphrase</span>
+              </button>
+            </div>
           </div>
 
           <!-- View Tabs -->
-          <div class="flex gap-2 mb-4">
-            <button id="notesViewTab" class="flex-1 py-3 px-6 rounded-lg font-semibold transition-colors bg-blue-600 text-white">
-              📝 Notes Details
-            </button>
-            <button id="historyViewTab" class="flex-1 py-3 px-6 rounded-lg font-semibold transition-colors bg-gray-700 text-gray-300 hover:bg-gray-600">
-              📜 Transaction History
-            </button>
-          </div>
-
-          <!-- Notes View -->
-          <div id="notesView">
-            <!-- Send Selected Button -->
-            <div class="mb-4">
-              <button id="sendSelectedBtn" disabled class="w-full bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition duration-200">
-                💸 Send Selected
-              </button>
+          <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+            <div class="border-b border-slate-200">
+              <nav class="flex">
+                <button id="notesViewTab" class="tab-button tab-active">
+                  <span class="text-xl mr-2">📝</span>
+                  Notes
+                </button>
+                <button id="historyViewTab" class="tab-button">
+                  <span class="text-xl mr-2">📜</span>
+                  Transaction History
+                </button>
+              </nav>
             </div>
 
-            <!-- Notes List -->
-            <div id="notesList" class="space-y-2">
-              <!-- Notes will be dynamically inserted here -->
-            </div>
-          </div>
+            <!-- Notes View -->
+            <div id="notesView">
+              <!-- Send Selected Button -->
+              <div class="p-6 border-b border-slate-200 bg-slate-50">
+                <button id="sendSelectedBtn" disabled class="send-selected-btn">
+                  <span class="btn-icon">💸</span>
+                  <span>Send Selected</span>
+                </button>
+              </div>
 
-          <!-- History View -->
-          <div id="historyView" class="hidden">
-            <div id="historyList" class="space-y-3">
-              <!-- Transaction history will be dynamically inserted here -->
+              <!-- Notes List -->
+              <div id="notesList" class="divide-y divide-slate-200"></div>
+            </div>
+
+            <!-- History View -->
+            <div id="historyView" class="hidden">
+              <div id="historyList" class="divide-y divide-slate-200"></div>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Send Transaction Modal -->
-      <div id="sendTxModal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-        <div class="bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-          <!-- Modal Header -->
-          <div class="flex justify-between items-center p-6 border-b border-gray-700">
-            <h2 class="text-2xl font-bold">💸 Send Transaction</h2>
-            <button id="closeSendTxModal" class="text-gray-400 hover:text-white text-3xl leading-none">&times;</button>
-          </div>
+      <div id="sendTxModal" class="modal-overlay hidden">
+        <div class="modal-container">
+          <!-- Close Button -->
+          <button id="closeSendTxModal" class="modal-close-btn">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
 
           <!-- Step 1: Create Transaction -->
-          <div id="createTxStep" class="p-6">
-            <div class="space-y-4">
-              <div>
-                <label class="block text-sm font-semibold mb-2">Recipient Public Key</label>
-                <input type="text" id="recipientInput" 
-                  class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                  placeholder="Enter recipient's public key">
+          <div id="createTxStep" class="modal-step">
+            <div class="modal-header">
+              <h2 class="modal-title">Send Transaction</h2>
+              <p class="modal-subtitle">Enter transaction details</p>
+            </div>
+
+            <div class="modal-body">
+              <div class="form-group">
+                <label class="form-label">Recipient Public Key</label>
+                <input type="text" id="recipientInput" placeholder="Enter recipient's public key" class="input-field">
               </div>
-              
-              <div>
-                <label class="block text-sm font-semibold mb-2">Amount (Nock)</label>
-                <input type="number" id="amountInput" step="0.0001"
-                  class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500"
-                  placeholder="0.0000">
+
+              <div class="form-group">
+                <label class="form-label" id="amountLabel">Amount (Nock)</label>
+                <input type="number" id="amountInput" step="0.0001" placeholder="0.0000" class="input-field">
               </div>
-              
-              <div>
-                <label class="block text-sm font-semibold mb-2">Fee (Nick)</label>
-                <input type="number" id="feeInput" value="10"
-                  class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500">
+
+              <div class="form-group">
+                <label class="form-label">Fee (Nick)</label>
+                <input type="number" id="feeInput" value="10" class="input-field">
               </div>
-              
-              <button id="createTxBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
+            </div>
+
+            <div class="modal-footer">
+              <button id="createTxBtn" class="btn-primary btn-blue w-full">
                 Create Transaction
               </button>
             </div>
           </div>
 
           <!-- Step 2: Confirm Transaction -->
-          <div id="confirmTxStep" class="hidden p-6">
-            <h3 class="text-xl font-bold mb-4">⚠️ Confirm Transaction</h3>
-            <div class="bg-gray-900 p-4 rounded-lg mb-4 max-h-64 overflow-y-auto">
-              <pre id="txDetails" class="text-sm text-gray-300 whitespace-pre-wrap"></pre>
+          <div id="confirmTxStep" class="modal-step hidden">
+            <div class="modal-header">
+              <h2 class="modal-title">Confirm Transaction</h2>
+              <p class="modal-subtitle">Review and confirm your transaction</p>
             </div>
-            <div class="flex gap-4">
-              <button id="backToCreateBtn" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
-                ← Back
+
+            <div class="modal-body">
+              <div class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                <pre id="txDetails" class="text-sm text-slate-700 whitespace-pre-wrap font-mono"></pre>
+              </div>
+            </div>
+
+            <div class="modal-footer space-x-3">
+              <button id="backToCreateBtn" class="btn-secondary flex-1">
+                Back
               </button>
-              <button id="confirmTxBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
-                Sign & Send →
+              <button id="confirmTxBtn" class="btn-primary btn-green flex-1">
+                Sign & Send
               </button>
             </div>
           </div>
 
           <!-- Step 3: Processing -->
-          <div id="processingTxStep" class="hidden p-6 text-center">
-            <div class="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-yellow-500 mb-4"></div>
-            <p class="text-lg">Processing transaction...</p>
-            <p class="text-sm text-gray-400 mt-2">Please wait</p>
+          <div id="processingTxStep" class="modal-step hidden">
+            <div class="modal-body text-center py-12">
+              <div class="loading-spinner mb-6"></div>
+              <h3 class="text-xl font-semibold text-slate-800 mb-2">Processing Transaction</h3>
+              <p class="text-slate-600">Please wait while we process your transaction...</p>
+            </div>
           </div>
 
           <!-- Step 4: Success -->
-          <div id="successTxStep" class="hidden p-6 text-center">
-            <div class="text-6xl mb-4">✅</div>
-            <h3 class="text-2xl font-bold mb-2">Transaction Sent!</h3>
-            <p class="text-gray-400 mb-6">Your transaction has been broadcast to the network</p>
-            <button id="closeTxSuccessBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
-              Close
-            </button>
+          <div id="successTxStep" class="modal-step hidden">
+            <div class="modal-body text-center py-12">
+              <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span class="text-3xl">✅</span>
+              </div>
+              <h3 class="text-xl font-semibold text-slate-800 mb-2">Transaction Sent!</h3>
+              <p class="text-slate-600 mb-6">Your transaction has been successfully submitted to the network.</p>
+              <button id="closeTxSuccessBtn" class="btn-primary btn-blue">
+                Close
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Key Management Section (update this part) -->
-      <div class="glass-card">
-        <h2 class="text-2xl font-bold mb-4">🔑 Key Management</h2>
-        
-        <!-- Export Keys -->
-        <div class="mb-6">
-          <h3 class="text-lg font-semibold mb-2">Export Keys</h3>
-          <button id="exportKeysBtn" class="btn-primary w-full mb-2">
-            📤 Export Keys to File
+      <!-- All Addresses Modal -->
+      <div id="allAddressesModal" class="modal-overlay hidden">
+        <div class="modal-container max-w-3xl">
+          <!-- Close Button -->
+          <button id="closeAllAddressesModal" class="modal-close-btn">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
           </button>
-          <button onclick="showSeedphrase()" class="btn-secondary w-full">
-            👁️ Show Seed Phrase
-          </button>
-          <p class="text-sm text-gray-400 mt-2">
-            💡 Export your keys or view your seed phrase to backup your wallet
-          </p>
-        </div>
-        
-        <!-- Import from File -->
-        <div class="mb-6">
-          <h3 class="text-lg font-semibold mb-2">Import Keys from File</h3>
-          <input 
-            type="file" 
-            id="importFile" 
-            accept=".export" 
-            class="hidden"
-            onchange="importKeysFromFile(this)"
-          >
-          <label for="importFile" class="btn-secondary w-full cursor-pointer inline-block text-center">
-            📥 Import Keys from File
-          </label>
-          <p class="text-sm text-gray-400 mt-2">
-            💡 Import keys from a previously exported .export file
-          </p>
-        </div>
-        
-        <!-- Import from Seedphrase -->
-        <div class="mb-6">
-          <h3 class="text-lg font-semibold mb-2">Import Keys from Seed Phrase</h3>
-          
-          <textarea
-            id="seedphraseInput"
-            placeholder="Enter your seed phrase here..."
-            class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-orange-500 mb-3 font-mono"
-            rows="3"
-          ></textarea>
-          
-          <div class="mb-3">
-            <label class="block text-sm font-medium mb-2">
-              Seed Phrase Version
-            </label>
-            <select 
-              id="seedphraseVersion" 
-              class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-orange-500"
-            >
-              <option value="">Select version...</option>
-              <option value="1">Version 1 (October 2025 and later)</option>
-              <option value="0">Version 0 (Before October 2025)</option>
-            </select>
-          </div>
-          
-          <button onclick="importKeysFromSeedphrase()" class="btn-primary w-full">
-            🔑 Import from Seed Phrase
-          </button>
-          
-          <div class="bg-yellow-900/20 border border-yellow-600/50 rounded-lg p-3 mt-3">
-            <p class="text-sm text-yellow-400">
-              ⚠️ <strong>Version Guide:</strong>
-            </p>
-            <ul class="text-xs text-gray-400 mt-2 space-y-1 ml-4">
-              <li>• <strong>Version 1:</strong> If you generated your seed phrase in October 2025 or later</li>
-              <li>• <strong>Version 0:</strong> If you generated your seed phrase before October 2025</li>
-              <li>• If you cannot spend your notes with version 0, try version 1</li>
-            </ul>
+
+          <div class="modal-step">
+            <div class="modal-header">
+              <h2 class="modal-title">Master Addresses</h2>
+              <p class="modal-subtitle">All available addresses in your wallet</p>
+            </div>
+
+            <div class="modal-body">
+              <div id="addressesList" class="space-y-3">
+                <div class="text-center text-slate-500 py-8">
+                  <div class="loading-spinner-dark mx-auto mb-4"></div>
+                  <p>Loading addresses...</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button id="closeAllAddressesModalBtn" class="btn-secondary w-full">
+                Close
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <script type="module" src="/main.js"></script>
+    <script type="module" src="./main.js"></script>
   </body>
 </html>
