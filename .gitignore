@@ -81,3 +81,4 @@ tmp/
 # Wallet specific
 *.export
 keys.export
+backend/wallet_history.json
