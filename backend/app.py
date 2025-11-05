@@ -44,44 +44,44 @@ else:
 os.makedirs(app.config['TX_FOLDER'], exist_ok=True)
 
 def get_wallet_public_key():
-    """Get the wallet's public key using show-master-pubkey."""
+    """Get the wallet's active address using list-active-addresses."""
     try:
-        cmd = WALLET_CMD_PREFIX + ['show-master-pubkey']
+        cmd = WALLET_CMD_PREFIX + ['list-active-addresses']
+        logger.info("Getting active address with command: %s", " ".join(cmd))
+        
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             check=True,
-            timeout=60
+            timeout=30
         )
         
         output = result.stdout
-        logger.info(f"Master pubkey command output received: {len(output)} chars")
+        logger.info(f"Active address command output received: {len(output)} chars")
         
-        # Extract the Corresponding Address
-        address_match = re.search(r'- Corresponding Address:\s*\n\s*([^\n]+)', output, re.MULTILINE)
-        if address_match:
-            address = address_match.group(1).strip()
-            logger.info(f"Wallet address extracted: {address[:50]}...")
-            return address
+        # Parse the output to extract active signing address
+        # Look for address in "Addresses -- Signing" section
+        signing_section = re.search(r'Addresses -- Signing(.*?)(?:Addresses -- Watch only|$)', output, re.DOTALL)
+        if signing_section:
+            address_match = re.search(r'- Address:\s*([^\n]+)', signing_section.group(1))
+            
+            if address_match:
+                address = address_match.group(1).strip()
+                logger.info(f"Active wallet address extracted: {address[:50]}...")
+                return address
         
-        # Fallback: try to find any long address-like string
-        lines = output.split('\n')
-        for line in lines:
-            line = line.strip()
-            # Look for long alphanumeric strings that look like addresses
-            if len(line) > 80 and line.isalnum():
-                logger.info(f"Wallet address (fallback): {line[:50]}...")
-                return line
-        
-        logger.warning("Could not extract wallet address from output")
+        logger.warning("Could not extract active address from output")
         return None
         
+    except subprocess.TimeoutExpired:
+        logger.error("Command timed out")
+        return None
     except subprocess.CalledProcessError as e:
-        logger.error(f"Error getting wallet master pubkey: {e.stderr}")
+        logger.error(f"Error getting active address: {e.stderr}")
         return None
     except Exception as e:
-        logger.error(f"Unexpected error getting wallet pubkey: {str(e)}")
+        logger.error(f"Unexpected error getting active address: {str(e)}")
         return None
 
 def get_tx_files_in_folder():
@@ -192,20 +192,21 @@ def get_wallet_balance():
         )
         
         output = result.stdout
-        print(f"=== RAW OUTPUT LENGTH: {len(output)} characters ===")
+        logger.info(f"list-notes command executed - output length: {len(output)} characters")
         
         # Parse the output to extract notes
         notes = []
         
         # Find the "Wallet Notes" section
         if "Wallet Notes" not in output:
-            print("=== No 'Wallet Notes' section found ===")
+            logger.warning("No 'Wallet Notes' section found in output")
             return {"notes": [], "notes_count": 0, "total_assets": 0}
         
-        # Split by the separator line (unicode em-dash character)
+        # Split by separator lines (50+ dashes or em-dashes)
+        # This works for both v0 and v1 as they both use separators
         sections = re.split(r'[―\-]{50,}', output)
         
-        print(f"=== FOUND {len(sections)} sections after split ===")
+        logger.debug(f"Found {len(sections)} sections after split")
         
         note_number = 0
         for i, section in enumerate(sections):
@@ -215,62 +216,140 @@ def get_wallet_balance():
             if not section or "Wallet Notes" in section:
                 continue
             
-            # Check if this section contains note details
-            if "Details" not in section and "- Name:" not in section:
+            # Detect if this is a v0 or v1 note
+            is_v1 = "Note Information" in section
+            is_v0 = "Details" in section and "Lock" in section
+            
+            if not is_v0 and not is_v1:
                 continue
             
             note_number += 1
             
             try:
-                # Extract name (can be multiline, between brackets)
+                # Extract name (same format for both versions)
                 name_match = re.search(r'- Name:\s*\[(.*?)\]', section, re.DOTALL)
                 if name_match:
-                    name = name_match.group(1).strip().replace('\n', '')
+                    name = name_match.group(1).strip().replace('\n', ' ')
                 else:
                     name = "Unknown"
                 
-                # Extract assets/value
-                assets_match = re.search(r'- Assets:\s*(\d+)', section)
+                # Extract version (same format for both)
+                version_match = re.search(r'- Version:\s*(\d+)', section)
+                version = int(version_match.group(1)) if version_match else 0
+                
+                # Extract assets - different labels for v0 and v1
+                if is_v1:
+                    # V1: "Assets (nicks):"
+                    assets_match = re.search(r'- Assets \(nicks\):\s*(\d+)', section)
+                else:
+                    # V0: "Assets:"
+                    assets_match = re.search(r'- Assets:\s*(\d+)', section)
+                
                 value = int(assets_match.group(1)) if assets_match else 0
                 
-                # Extract block height
-                block_match = re.search(r'- Block Height:\s*(\d+)', section)
-                block_height = int(block_match.group(1)) if block_match else 0
+                # Extract block height - MUST be done separately for each version
+                block_height = 0
+                if is_v1:
+                    # For v1, block height is in the same section as "Note Information"
+                    block_match = re.search(r'Note Information.*?- Block Height:\s*(\d+)', section, re.DOTALL)
+                    if block_match:
+                        block_height = int(block_match.group(1))
+                else:
+                    # For v0, block height is in the "Details" section
+                    block_match = re.search(r'Details.*?- Block Height:\s*(\d+)', section, re.DOTALL)
+                    if block_match:
+                        block_height = int(block_match.group(1))
                 
-                # Extract source address
-                source_match = re.search(r'- Source:\s*(\S+)', section)
-                source = source_match.group(1) if source_match else "Unknown"
+                # Extract source (only in v0)
+                source = None
+                if is_v0:
+                    source_match = re.search(r'- Source:\s*(\S+)', section)
+                    source = source_match.group(1) if source_match else "Unknown"
                 
-                # Extract signer address (in Lock section, after "- Signers:")
-                signer_match = re.search(r'- Signers:\s*\n\s*(\S+)', section, re.MULTILINE)
-                if not signer_match:
-                    # Try alternative format
-                    signer_match = re.search(r'- Signers:\s*(\S+)', section)
-                signer = signer_match.group(1).strip() if signer_match else "Unknown"
+                # Extract signer - MUST be done separately for each version
+                signer = "Unknown"
+                
+                if is_v1:
+                    # V1: Check for N/A first
+                    if "Lock Information: N/A" in section:
+                        signer = "N/A"
+                    else:
+                        # V1: Look specifically in "Lock Information" section
+                        lock_info_match = re.search(r'- Lock Information:(.*?)(?:$)', section, re.DOTALL)
+                        if lock_info_match:
+                            lock_section = lock_info_match.group(1)
+                            logger.debug(f"V1 Lock section: {repr(lock_section)}")
+                            
+                            # Try multiple patterns for v1 signers
+                            patterns = [
+                                r'- Signers:\s*\n\s*-\s+([A-Za-z0-9]{50,})',  # With dash and spaces
+                                r'- Signers:\s*\n\s+([A-Za-z0-9]{50,})',      # Without dash, just spaces
+                                r'Signers:\s*\n\s*-?\s*([A-Za-z0-9]{50,})',   # Optional dash
+                            ]
+                            
+                            for pattern in patterns:
+                                signer_match = re.search(pattern, lock_section)
+                                if signer_match:
+                                    signer = signer_match.group(1).strip()
+                                    logger.debug(f"V1 Signer found with pattern '{pattern}': {signer[:50]}...")
+                                    break
+                            
+                            if signer == "Unknown":
+                                logger.warning(f"V1 Signer not found. Lock section: {repr(lock_section)}")
+                else:
+                    # V0: Look specifically in "Lock" section (not "Lock Information")
+                    lock_match = re.search(r'Lock\s*\n(.*?)$', section, re.DOTALL)
+                    if lock_match:
+                        lock_section = lock_match.group(1)
+                        logger.debug(f"V0 Lock section: {repr(lock_section)}")
+                        
+                        # Try multiple patterns for v0 signers
+                        patterns = [
+                            r'- Signers:\s*\n\s*([A-Za-z0-9]{50,})',          # Standard format
+                            r'Signers:\s*\n\s*([A-Za-z0-9]{50,})',            # Without dash before Signers
+                            r'- Signers:\s*\n\s*-?\s*([A-Za-z0-9]{50,})',    # Optional dash before address
+                        ]
+                        
+                        for pattern in patterns:
+                            signer_match = re.search(pattern, lock_section)
+                            if signer_match:
+                                signer = signer_match.group(1).strip()
+                                logger.debug(f"V0 Signer found with pattern '{pattern}': {signer[:50]}...")
+                                break
+                        
+                        if signer == "Unknown":
+                            logger.warning(f"V0 Signer not found. Lock section: {repr(lock_section)}")
+                    else:
+                        logger.warning(f"V0 Lock section not found in section")
                 
                 note = {
                     'number': note_number,
                     'name': name,
                     'value': value,
                     'block_height': block_height,
-                    'source': source,
+                    'version': version,
                     'signer': signer
                 }
                 
+                # Add source only for v0 notes
+                if source:
+                    note['source'] = source
+                
                 notes.append(note)
                 
-                print(f"=== Note {note_number}: {name[:30]}... = {value} nick (block {block_height}) ===")
+                format_type = "v1" if is_v1 else "v0"
+                logger.debug(f"Note {note_number} ({format_type}): {name[:50]}... = {value} nick (block {block_height}, signer: {signer[:30]}...)")
                 
             except Exception as e:
-                print(f"=== Error parsing section {i}: {str(e)} ===")
-                print(f"=== Section content (first 200 chars): {section[:200]} ===")
+                logger.error(f"Error parsing section {i}: {str(e)}")
+                logger.debug(f"Section content (first 400 chars): {section[:400]}")
                 import traceback
-                traceback.print_exc()
+                logger.error(traceback.format_exc())
                 continue
         
         total_assets = sum(note["value"] for note in notes)
         
-        print(f"=== FINAL: {len(notes)} notes parsed, total: {total_assets} nick ===")
+        logger.info(f"Balance parsed: {len(notes)} notes, total: {total_assets} nick")
         
         return {
             "notes": notes,
@@ -279,13 +358,13 @@ def get_wallet_balance():
         }
         
     except subprocess.TimeoutExpired:
-        print("=== ERROR: Command timeout ===")
+        logger.error("list-notes command timeout")
         return {"notes": [], "notes_count": 0, "total_assets": 0, "error": "Command timeout"}
     except subprocess.CalledProcessError as e:
-        print(f"=== ERROR: Command failed: {e.stderr} ===")
+        logger.error(f"list-notes command failed: {e.stderr}")
         return {"notes": [], "notes_count": 0, "total_assets": 0, "error": str(e)}
     except Exception as e:
-        print(f"=== ERROR: Unexpected error: {str(e)} ===")
+        logger.error(f"Unexpected error in get_wallet_balance: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"notes": [], "notes_count": 0, "total_assets": 0, "error": str(e)}
@@ -386,7 +465,7 @@ def create_transaction():
             if accumulated < total_needed:
                 return jsonify({
                     "error": f"Insufficient funds. Need {total_needed} nick, have {accumulated} nick."
-                }), 400
+                }, 400)
 
         # Build the names parameter like in the working script
         # Format: "[note1],[note2],[note3]" (each note in brackets, separated by commas)
@@ -1071,6 +1150,66 @@ def list_master_addresses():
         return jsonify({"success": False, "error": e.stderr}), 500
     except Exception as e:
         logger.error("Error listing master addresses: %s", str(e))
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/set-active-address', methods=['POST'])
+def set_active_address():
+    """Set an address as the active master address"""
+    try:
+        data = request.get_json()
+        address = data.get('address')
+        
+        if not address:
+            return jsonify({
+                "success": False,
+                "error": "Address is required"
+            }), 400
+        
+        cmd = WALLET_CMD_PREFIX + ["set-active-master-address", address]
+        logger.info("Setting active address with command: %s", " ".join(cmd))
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30
+        )
+        
+        output = result.stdout
+        logger.info("Set active address output: %s", output)
+        
+        # Force wallet sync after changing address
+        logger.info("Forcing wallet synchronization after address change...")
+        sync_cmd = WALLET_CMD_PREFIX + ["list-notes"]
+        sync_result = subprocess.run(
+            sync_cmd,
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+        logger.info("Wallet synchronized after address change")
+        
+        # Get updated balance for the new active address
+        logger.info("Getting balance for new active address...")
+        balance_data = get_wallet_balance()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Address set as active successfully",
+            "output": output,
+            "balance": balance_data,
+            "active_address": address
+        })
+        
+    except subprocess.TimeoutExpired:
+        logger.error("Command timed out")
+        return jsonify({"success": False, "error": "Command timed out"}), 500
+    except subprocess.CalledProcessError as e:
+        logger.error("Command failed with error: %s", e.stderr)
+        return jsonify({"success": False, "error": e.stderr}), 500
+    except Exception as e:
+        logger.error("Error setting active address: %s", str(e))
         return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == "__main__":

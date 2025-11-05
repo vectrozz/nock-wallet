@@ -268,6 +268,7 @@ function toggleHistoryDetails(index) {
 // Load active address
 async function loadActiveAddress() {
   try {
+    console.log('Loading active address...')
     const response = await axios.get(`${API_BASE}/api/active-address`)
     
     if (response.data.success) {
@@ -281,6 +282,7 @@ async function loadActiveAddress() {
       if (activeAddressVersionElem) {
         activeAddressVersionElem.textContent = `v${response.data.version}`
       }
+      console.log('Active address loaded successfully')
     }
   } catch (error) {
     console.error('Error loading active address:', error)
@@ -292,8 +294,100 @@ async function loadActiveAddress() {
   }
 }
 
+// Set active address
+async function setActiveAddress(address, version) {
+  console.log('setActiveAddress called with:', address, 'version:', version)
+  if (!confirm(`Are you sure you want to set this address as active?\n\n${address}`)) {
+    return
+  }
+  
+  try {
+    // Show loading state
+    const toast = showLoadingToast('Setting active address...')
+    
+    const response = await axios.post(`${API_BASE}/api/set-active-address`, {
+      address: address
+    })
+    
+    console.log('Set active address response:', response.data)
+    
+    // Remove loading toast
+    if (document.body.contains(toast)) {
+      document.body.removeChild(toast)
+    }
+    
+    if (response.data.success) {
+      // Close the addresses modal
+      closeAllAddressesModal()
+      
+      // Show success message
+      showSuccessToast('Address changed! Wallet synchronized.')
+      
+      // IMPORTANT: Clear all notes and selected notes FIRST
+      allNotes = []
+      selectedNotes.clear()
+      
+      // The backend already returns the balance data, so we use it directly
+      const balanceData = response.data.balance
+      
+      // Update the UI with the data from the response
+      if (balanceData && !balanceData.error) {
+        // Update notes count
+        notesCount.textContent = balanceData.notes_count
+        
+        // Display total in Nock and Nick
+        const totalNock = nickToNock(balanceData.total_assets)
+        totalAssets.innerHTML = `
+          <span class="text-4xl font-bold">${totalNock}</span>
+          <span class="text-lg text-blue-100 ml-2">nock</span>
+          <br>
+          <span class="text-lg text-blue-200">${balanceData.total_assets.toLocaleString()}</span>
+          <span class="text-sm text-blue-200 ml-1">nick</span>
+        `
+        
+        // Store all notes (now that allNotes is cleared, we have a fresh start)
+        allNotes = balanceData.notes || []
+        
+        console.log('New notes loaded:', allNotes.length, 'notes for address:', address)
+        
+        // Render notes with current sorting
+        renderNotes()
+        
+        updateSendSelectedButton()
+        
+        // Show balance content, hide error
+        errorDisplay.classList.add('hidden')
+        balanceContent.classList.remove('hidden')
+      }
+      
+      // Update active address display using the version passed as parameter
+      const activeAddressElem = document.getElementById('activeAddress')
+      const activeAddressVersionElem = document.getElementById('activeAddressVersion')
+      
+      if (activeAddressElem && response.data.active_address) {
+        activeAddressElem.textContent = response.data.active_address
+      }
+      
+      if (activeAddressVersionElem && version !== null && version !== undefined) {
+        activeAddressVersionElem.textContent = `v${version}`
+      }
+      
+      // If we're on history view, reload it
+      if (currentView === 'history') {
+        await loadTransactionHistory()
+      }
+    } else {
+      throw new Error(response.data.error || 'Failed to set active address')
+    }
+  } catch (error) {
+    console.error('Error setting active address:', error)
+    showErrorToast('Error: ' + (error.response?.data?.error || error.message))
+  }
+}
+
 // Load all master addresses
 async function loadAllMasterAddresses() {
+  console.log('loadAllMasterAddresses called')
   try {
     addressesList.innerHTML = `
       <div class="text-center text-slate-500 py-8">
@@ -302,7 +396,9 @@ async function loadAllMasterAddresses() {
       </div>
     `
     
+    console.log('Fetching master addresses from API...')
     const response = await axios.get(`${API_BASE}/api/list-master-addresses`)
+    console.log('Master addresses response:', response.data)
     
     if (response.data.success && response.data.addresses.length > 0) {
       addressesList.innerHTML = ''
@@ -313,6 +409,9 @@ async function loadAllMasterAddresses() {
           addr.is_active ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
         }`
         
+        // Escape single quotes in address for onclick handler
+        const escapedAddress = addr.address.replace(/'/g, "\\'")
+        
         addressCard.innerHTML = `
           <div class="flex items-start justify-between gap-4">
             <div class="flex-1 min-w-0">
@@ -321,19 +420,30 @@ async function loadAllMasterAddresses() {
                 <span class="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs font-semibold rounded-full">v${addr.version}</span>
                 ${addr.is_active ? '<span class="px-2 py-0.5 bg-blue-500 text-white text-xs font-semibold rounded-full">Active</span>' : ''}
               </div>
-              <code class="text-sm font-mono text-slate-800 break-all block">${addr.address}</code>
+              <code class="text-sm font-mono text-slate-800 break-all block mb-3">${addr.address}</code>
+              <div class="flex gap-2">
+                <button 
+                  onclick="window.copyToClipboard('${escapedAddress}')" 
+                  class="btn-secondary text-xs px-3 py-1.5"
+                  title="Copy to clipboard">
+                  📋 Copy
+                </button>
+                ${!addr.is_active ? `
+                  <button 
+                    onclick="window.setActiveAddress('${escapedAddress}', ${addr.version})" 
+                    class="btn-primary btn-blue text-xs px-3 py-1.5"
+                    title="Set as active address">
+                    ⭐ Set Active
+                  </button>
+                ` : ''}
+              </div>
             </div>
-            <button 
-              onclick="window.copyToClipboard('${addr.address}')" 
-              class="btn-secondary text-xs px-3 py-2 flex-shrink-0"
-              title="Copy to clipboard">
-              📋 Copy
-            </button>
           </div>
         `
         
         addressesList.appendChild(addressCard)
       })
+      console.log('Addresses rendered successfully')
     } else {
       addressesList.innerHTML = `
         <div class="text-center text-slate-500 py-8">
@@ -356,38 +466,89 @@ async function loadAllMasterAddresses() {
 
 // Show all addresses modal
 function showAllAddressesModal() {
+  console.log('showAllAddressesModal called')
+  if (!allAddressesModal) {
+    console.error('allAddressesModal element not found!')
+    return
+  }
   allAddressesModal.classList.remove('hidden')
   loadAllMasterAddresses()
 }
 
 // Close all addresses modal
 function closeAllAddressesModal() {
+  console.log('closeAllAddressesModal called')
+  if (!allAddressesModal) {
+    console.error('allAddressesModal element not found!')
+    return
+  }
   allAddressesModal.classList.add('hidden')
+}
+
+// Toast notification helpers
+function showLoadingToast(message) {
+  const toast = document.createElement('div')
+  toast.className = 'fixed top-4 right-4 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg z-[10000] animate-slideIn'
+  toast.innerHTML = `
+    <div class="flex items-center gap-3">
+      <div class="loading-spinner-small"></div>
+      <span class="font-semibold">${message}</span>
+    </div>
+  `
+  document.body.appendChild(toast)
+  return toast
+}
+
+function showSuccessToast(message) {
+  const toast = document.createElement('div')
+  toast.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-[10000] animate-slideIn'
+  toast.innerHTML = `
+    <div class="flex items-center gap-2">
+      <span class="text-xl">✅</span>
+      <span class="font-semibold">${message}</span>
+    </div>
+  `
+  document.body.appendChild(toast)
+  
+  setTimeout(() => {
+    toast.style.animation = 'slideOut 0.3s ease-out'
+    setTimeout(() => {
+      if (document.body.contains(toast)) {
+        document.body.removeChild(toast)
+      }
+    }, 300)
+  }, 3000)
+}
+
+function showErrorToast(message) {
+  const toast = document.createElement('div')
+  toast.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-[10000] animate-slideIn'
+  toast.innerHTML = `
+    <div class="flex items-center gap-2">
+      <span class="text-xl">⚠️</span>
+      <span class="font-semibold">${message}</span>
+    </div>
+  `
+  document.body.appendChild(toast)
+  
+  setTimeout(() => {
+    toast.style.animation = 'slideOut 0.3s ease-out'
+    setTimeout(() => {
+      if (document.body.contains(toast)) {
+        document.body.removeChild(toast)
+      }
+    }, 300)
+  }, 5000)
 }
 
 // Copy to clipboard function
 function copyToClipboard(text) {
+  console.log('Copying to clipboard:', text)
   navigator.clipboard.writeText(text).then(() => {
-    // Show a temporary success message
-    const toast = document.createElement('div')
-    toast.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-[10000] animate-slideIn'
-    toast.innerHTML = `
-      <div class="flex items-center gap-2">
-        <span class="text-xl">✅</span>
-        <span class="font-semibold">Address copied to clipboard!</span>
-      </div>
-    `
-    document.body.appendChild(toast)
-    
-    setTimeout(() => {
-      toast.style.animation = 'slideOut 0.3s ease-out'
-      setTimeout(() => {
-        document.body.removeChild(toast)
-      }, 300)
-    }, 2000)
+    showSuccessToast('Address copied to clipboard!')
   }).catch(err => {
     console.error('Failed to copy:', err)
-    alert('Failed to copy address to clipboard')
+    showErrorToast('Failed to copy address to clipboard')
   })
 }
 
@@ -425,9 +586,14 @@ async function updateBalance() {
         <span class="text-sm text-blue-200 ml-1">nick</span>
       `
       
-      // Store all notes
-      allNotes = data.notes
+      // IMPORTANT: Clear before storing new notes
+      allNotes = []
       selectedNotes.clear()
+      
+      // Store all notes
+      allNotes = data.notes || []
+      
+      console.log('Balance updated:', allNotes.length, 'notes loaded')
       
       // Render notes with current sorting
       renderNotes()
@@ -1019,7 +1185,7 @@ function handleNoteCheckboxChange(index, checked) {
   updateSendSelectedButton()
 }
 
-// Make functions globally accessible
+// Make functions globally accessible for onclick handlers
 window.toggleNoteDetails = toggleNoteDetails
 window.handleNoteCheckboxChange = handleNoteCheckboxChange
 window.switchView = switchView
@@ -1027,6 +1193,7 @@ window.importKeysFromFile = importKeysFromFile
 window.importKeysFromSeedphrase = importKeysFromSeedphrase
 window.showSeedphrase = showSeedphrase
 window.copyToClipboard = copyToClipboard
+window.setActiveAddress = setActiveAddress
 
 // Event handlers functions
 function handleSendTxBtnClick() {
@@ -1042,6 +1209,16 @@ function handleSendSelectedBtnClick() {
 function handleCloseSendTxModal() {
   console.log('Close modal button clicked')
   closeSendTxModal()
+}
+
+function handleShowAllAddressesClick() {
+  console.log('Show all addresses button clicked')
+  showAllAddressesModal()
+}
+
+function handleCloseAllAddressesModal() {
+  console.log('Close addresses modal button clicked')
+  closeAllAddressesModal()
 }
 
 // Initialize when DOM is loaded
@@ -1119,26 +1296,37 @@ document.addEventListener('DOMContentLoaded', function() {
     confirmTxBtn.addEventListener('click', signAndSendTransaction)
   }
 
+  // Close modal when clicking outside
+  if (sendTxModal) {
+    sendTxModal.addEventListener('click', (e) => {
+      if (e.target === sendTxModal) {
+        console.log('Clicked outside modal, closing')
+        closeSendTxModal()
+      }
+    })
+  }
+  
   // All Addresses Modal event listeners
   const showAllAddressesBtn = document.getElementById('showAllAddressesBtn')
   if (showAllAddressesBtn) {
-    showAllAddressesBtn.addEventListener('click', showAllAddressesModal)
+    showAllAddressesBtn.addEventListener('click', handleShowAllAddressesClick)
   }
   
   const closeAllAddressesModalBtn = document.getElementById('closeAllAddressesModal')
   if (closeAllAddressesModalBtn) {
-    closeAllAddressesModalBtn.addEventListener('click', closeAllAddressesModal)
+    closeAllAddressesModalBtn.addEventListener('click', handleCloseAllAddressesModal)
   }
   
   const closeAllAddressesModalBtn2 = document.getElementById('closeAllAddressesModalBtn')
   if (closeAllAddressesModalBtn2) {
-    closeAllAddressesModalBtn2.addEventListener('click', closeAllAddressesModal)
+    closeAllAddressesModalBtn2.addEventListener('click', handleCloseAllAddressesModal)
   }
   
   // Close modal when clicking outside
   if (allAddressesModal) {
     allAddressesModal.addEventListener('click', (e) => {
       if (e.target === allAddressesModal) {
+        console.log('Clicked outside addresses modal, closing')
         closeAllAddressesModal()
       }
     })
