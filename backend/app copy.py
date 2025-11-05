@@ -192,12 +192,7 @@ def get_wallet_balance():
         )
         
         output = result.stdout
-        
-        # Remove ANSI escape codes (color codes) from output
-        ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
-        output = ansi_escape.sub('', output)
-        
-        logger.info(f"list-notes command executed - output length: {len(output)} characters (ANSI codes removed)")
+        logger.info(f"list-notes command executed - output length: {len(output)} characters")
         
         # Parse the output to extract notes
         notes = []
@@ -283,11 +278,12 @@ def get_wallet_balance():
                         lock_info_match = re.search(r'- Lock Information:(.*?)(?:$)', section, re.DOTALL)
                         if lock_info_match:
                             lock_section = lock_info_match.group(1)
+                            logger.debug(f"V1 Lock section: {repr(lock_section)}")
                             
-                            # Try multiple patterns for v1 signers (ANSI codes are now removed)
+                            # Try multiple patterns for v1 signers
                             patterns = [
-                                r'- Signers:\s*\n\s*-\s*([A-Za-z0-9]{50,})',  # With dash and spaces
-                                r'- Signers:\s*\n\s*([A-Za-z0-9]{50,})',      # Without dash, just spaces
+                                r'- Signers:\s*\n\s*-\s+([A-Za-z0-9]{50,})',  # With dash and spaces
+                                r'- Signers:\s*\n\s+([A-Za-z0-9]{50,})',      # Without dash, just spaces
                                 r'Signers:\s*\n\s*-?\s*([A-Za-z0-9]{50,})',   # Optional dash
                             ]
                             
@@ -299,13 +295,13 @@ def get_wallet_balance():
                                     break
                             
                             if signer == "Unknown":
-                                logger.warning(f"V1 Signer not found. Lock section (cleaned): {repr(lock_section[:200])}")
+                                logger.warning(f"V1 Signer not found. Lock section: {repr(lock_section)}")
                 else:
-                    # V0: Look specifically in "Lock" section
-                    # Use a more flexible pattern that doesn't require Lock to be at line start
-                    lock_match = re.search(r'Lock\s*\n(.*?)(?:\n\n|$)', section, re.DOTALL)
+                    # V0: Look specifically in "Lock" section (not "Lock Information")
+                    lock_match = re.search(r'Lock\s*\n(.*?)$', section, re.DOTALL)
                     if lock_match:
                         lock_section = lock_match.group(1)
+                        logger.debug(f"V0 Lock section: {repr(lock_section)}")
                         
                         # Try multiple patterns for v0 signers
                         patterns = [
@@ -322,9 +318,9 @@ def get_wallet_balance():
                                 break
                         
                         if signer == "Unknown":
-                            logger.warning(f"V0 Signer not found. Lock section: {repr(lock_section[:200])}")
+                            logger.warning(f"V0 Signer not found. Lock section: {repr(lock_section)}")
                     else:
-                        logger.warning(f"V0 Lock section not found. Section preview: {repr(section[:300])}")
+                        logger.warning(f"V0 Lock section not found in section")
                 
                 note = {
                     'number': note_number,
