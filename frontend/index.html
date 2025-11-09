@@ -64,7 +64,7 @@
                     value="public" 
                     checked
                     class="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                    onchange="window.handleGrpcServerChange('public')">
+                    onchange="window.handleGrpcServerChange()">
                 <span class="text-slate-200 group-hover:text-white transition-colors">
                   Public <span class="text-slate-400 text-xs">(nockchain-api.zorp.io:443)</span>
                 </span>
@@ -77,7 +77,7 @@
                     name="grpcServer" 
                     value="private" 
                     class="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                    onchange="window.handleGrpcServerChange('private')">
+                    onchange="window.handleGrpcServerChange()">
                 <span class="text-slate-200 group-hover:text-white transition-colors">
                   Private <span class="text-slate-400 text-xs">(localhost:5555)</span>
                 </span>
@@ -90,7 +90,7 @@
                     name="grpcServer" 
                     value="custom" 
                     class="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                    onchange="window.handleGrpcServerChange('custom')">
+                    onchange="window.handleGrpcServerChange()">
                 <span class="text-slate-200 group-hover:text-white transition-colors">Custom</span>
                 </label>
                 
@@ -99,7 +99,7 @@
                   id="customGrpcAddress"
                   placeholder="host:port (e.g., 192.168.1.100:5555)"
                   class="hidden bg-slate-700 text-slate-200 px-3 py-1.5 rounded border border-slate-600 focus:border-blue-500 focus:outline-none text-sm w-64"
-                  onchange="window.updateCustomGrpcServer()">
+                  onchange="window.handleGrpcServerChange()">
               </div>
               
               <div id="grpcServerStatus" class="ml-auto flex items-center gap-2">
@@ -179,7 +179,7 @@
             </div>
           </div>
 
-          <!-- Import from Seedphrase Card -->
+          <!-- Import from Seedphrase Card 
           <div class="bg-white rounded-2xl shadow-lg border border-slate-200 mb-8 p-6">
             <h3 class="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
               <span class="text-2xl">🌱</span>
@@ -208,7 +208,7 @@
               </button>
             </div>
           </div>
-
+        -->
           <!-- View Tabs -->
           <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
             <div class="border-b border-slate-200">
@@ -243,6 +243,36 @@
               <div id="historyList" class="divide-y divide-slate-200"></div>
             </div>
           </div>
+        </div>
+      </div>
+
+            <!-- Import from Seedphrase Card -->
+      <div class="bg-white rounded-2xl shadow-lg border border-slate-200 mb-8 p-6">
+        <h3 class="text-xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
+          <span class="text-2xl">🌱</span>
+          Import from Seedphrase
+        </h3>
+        <div class="space-y-4 w-full">
+          <div class="w-full">
+            <label class="block text-sm font-medium text-slate-700 mb-2">Seed Phrase</label>
+            <textarea 
+              id="seedphraseInput" 
+              placeholder="Enter your seed phrase here..."
+              class="input-field h-24 resize-none w-full"
+            ></textarea>
+          </div>
+          <div class="w-full">
+            <label class="block text-sm font-medium text-slate-700 mb-2">Version</label>
+            <select id="seedphraseVersion" class="input-field w-full">
+              <option value="">Select version</option>
+              <option value="0">Version 0</option>
+              <option value="1">Version 1</option>
+            </select>
+          </div>
+          <button onclick="window.importKeysFromSeedphrase()" class="btn-primary btn-indigo w-full" id="importSeedphraseBtn">
+            <span class="btn-icon">🚀</span>
+            <span>Import from Seedphrase</span>
+          </button>
         </div>
       </div>
 

@@ -42,7 +42,6 @@ def register_routes(app):
         """Get current wallet configuration."""
         try:
             config = load_config()
-            logger.info(f"📤 Returning config: {config}")
             return jsonify({
                 "success": True,
                 "config": config
@@ -552,6 +551,55 @@ def register_routes(app):
         
         if not result.get('success'):
             return jsonify(result), 500
+        
+        return jsonify(result)
+
+
+    # ✅ NOUVELLE ROUTE pour gRPC config
+    @app.route('/api/grpc-config', methods=['GET'])
+    def get_grpc_config():
+        """Get gRPC configuration."""
+        config = get_config()
+        return jsonify(config)
+
+
+    @app.route('/api/grpc-config', methods=['POST'])
+    def update_grpc_config():
+        """Update gRPC configuration."""
+        data = request.json
+        
+        # Valider les données
+        if 'type' not in data:
+            return jsonify({
+                "success": False,
+                "error": "Missing 'type' parameter"
+            }), 400
+        
+        if data['type'] not in ['public', 'private', 'custom']:
+            return jsonify({
+                "success": False,
+                "error": "Invalid type. Must be 'public', 'private', or 'custom'"
+            }), 400
+        
+        if data['type'] == 'custom' and not data.get('customAddress'):
+            return jsonify({
+                "success": False,
+                "error": "Custom address required for custom type"
+            }), 400
+        
+        # Mettre à jour la configuration
+        config = get_config()
+        config['grpc'] = {
+            'type': data['type'],
+            'customAddress': data.get('customAddress', '')
+        }
+        
+        result = update_config(config)
+        
+        if not result.get('success'):
+            return jsonify(result), 500
+        
+        logger.info(f"✅ gRPC configuration updated: {config['grpc']}")
         
         return jsonify(result)
 

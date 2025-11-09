@@ -1,8 +1,6 @@
 // Import all modules
 import { 
-  initializeGrpcConfig, 
-  handleGrpcServerChange, 
-  updateCustomGrpcServer 
+  initGrpcConfig
 } from './config/grpc.js'
 
 import { 
@@ -55,11 +53,12 @@ import {
   showErrorToast 
 } from './ui/toast.js'
 
-import { importKeys, importFromSeedphrase } from './api/wallet.js'  // ✅ AJOUTER importFromSeedphrase
+import { importKeys, importFromSeedphrase } from './api/wallet.js'
+import { saveGrpcConfig } from './api/config.js' // ✅ Importer depuis config.js
 
 console.log('📦 Main.js loaded')
 
-// ✅ Import keys from seedphrase function
+// Import keys from seedphrase function
 async function importKeysFromSeedphrase() {
   const seedphraseInput = document.getElementById('seedphraseInput')
   const seedphraseVersion = document.getElementById('seedphraseVersion')
@@ -89,7 +88,6 @@ async function importKeysFromSeedphrase() {
   try {
     console.log('🌱 Importing keys from seedphrase, version:', version)
     
-    // ✅ UTILISER LA BONNE FONCTION
     const response = await importFromSeedphrase(seedphrase, parseInt(version))
     
     document.body.removeChild(loadingToast)
@@ -133,16 +131,60 @@ window.sendTransactionHandler = sendTransactionHandler
 window.openImportModal = openImportModal
 window.importKeysHandler = importKeysHandler
 window.importFromFileHandler = importFromFileHandler
-window.importKeysFromSeedphrase = importKeysFromSeedphrase  // ✅ AJOUTER
+window.importKeysFromSeedphrase = importKeysFromSeedphrase
 window.openAddressesModal = openAddressesModal
 window.setActiveAddress = setActiveAddress
 window.copyAddress = copyAddress
 window.openHistoryModal = openHistoryModal
-window.handleGrpcServerChange = handleGrpcServerChange
-window.updateCustomGrpcServer = updateCustomGrpcServer
 window.closeModal = closeModal
 window.handleNoteCheckboxChange = handleNoteCheckboxChange
 window.toggleNoteDetails = toggleNoteDetails
+
+// ✅ Utiliser l'API depuis config.js
+window.handleGrpcServerChange = async function() {
+  console.log('📻 Radio changed - saving configuration...')
+  
+  const publicRadio = document.getElementById('grpcPublic')
+  const privateRadio = document.getElementById('grpcPrivate')
+  const customRadio = document.getElementById('grpcCustom')
+  const customAddressInput = document.getElementById('customGrpcAddress')
+  
+  // Déterminer le type sélectionné
+  let selectedType = 'public'
+  if (privateRadio?.checked) {
+    selectedType = 'private'
+  } else if (customRadio?.checked) {
+    selectedType = 'custom'
+  }
+  
+  const config = {
+    type: selectedType,
+    customAddress: selectedType === 'custom' ? (customAddressInput?.value.trim() || '') : ''
+  }
+  
+  console.log('💾 Saving gRPC config:', config)
+  
+  try {
+    // ✅ Utiliser la fonction importée au lieu de fetch direct
+    const result = await saveGrpcConfig(config)
+    
+    if (result.success) {
+      console.log('✅ gRPC configuration saved:', config)
+      showSuccessToast('Configuration saved! Reloading...')
+      
+      // Reload page après 1 seconde
+      setTimeout(() => {
+        window.location.reload()
+      }, 1000)
+    } else {
+      console.error('❌ Failed to save config:', result.error)
+      showErrorToast('Failed to save configuration')
+    }
+  } catch (error) {
+    console.error('❌ Error saving gRPC config:', error)
+    showErrorToast('Error saving configuration: ' + error.message)
+  }
+}
 
 // Close modals on background click
 document.addEventListener('click', (e) => {
@@ -156,7 +198,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   console.log('🚀 Nockchain Wallet starting...')
   
   // Initialize gRPC configuration FIRST (wait for it)
-  await initializeGrpcConfig()
+  await initGrpcConfig()
   
   // Add event listeners for buttons
   const updateBalanceBtn = document.getElementById('updateBalanceBtn')

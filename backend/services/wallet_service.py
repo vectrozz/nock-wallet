@@ -3,29 +3,41 @@ Wallet service - handles balance, sync, and address operations.
 """
 import re
 import subprocess
-from utils.command import execute_wallet_command
+import os
+from utils.grpc import get_grpc_args
 from utils.parser import parse_list_notes
 from config import SYNC_TIMEOUT
 from logger import logger
 
+# Check if running in Docker
+NOCKCHAIN_WALLET_HOST = os.getenv('NOCKCHAIN_WALLET_HOST')
+if NOCKCHAIN_WALLET_HOST:
+    WALLET_CMD_PREFIX = ['docker', 'exec', 'nockchain-wallet-service', 'nockchain-wallet']
+    logger.info(f"Running in Docker mode - wallet container: {NOCKCHAIN_WALLET_HOST}")
+else:
+    WALLET_CMD_PREFIX = ['nockchain-wallet']
+    logger.info("Running in local mode - using local nockchain-wallet")
+
 
 def get_wallet_balance():
-    """
-    Get wallet balance by parsing list-notes output.
-    
-    Returns:
-        dict: {
-            "notes": [...],
-            "notes_count": int,
-            "total_assets": int,
-            "error": str (optional),
-            "error_details": str (optional),
-            "is_rpc_error": bool (optional)
-        }
-    """
+    """Get wallet balance by parsing list-notes output."""
     try:
+        # Build command with gRPC args from config
+        cmd = WALLET_CMD_PREFIX.copy()
+        cmd.extend(get_grpc_args())  # ← Lit depuis le fichier config
+        cmd.append("list-notes")
+        
+        logger.info(f"Executing command: {' '.join(cmd)}")
+        
         # Execute list-notes command
-        result = execute_wallet_command(['list-notes'])
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+            bufsize=-1
+        )
         
         output = result.stdout
         error_output = result.stderr
@@ -36,7 +48,6 @@ def get_wallet_balance():
         if result.returncode != 0:
             logger.error(f"list-notes failed with exit code {result.returncode}")
             
-            # Check if it's an RPC error
             full_output = output + "\n" + error_output
             is_rpc_error = (
                 "gRPC" in full_output or 
@@ -83,20 +94,23 @@ def get_wallet_balance():
 
 
 def get_active_address():
-    """
-    Get the active wallet address.
-    
-    Returns:
-        dict: {
-            "success": bool,
-            "active_address": str (optional),
-            "version": int (optional),
-            "error": str (optional)
-        }
-    """
+    """Get the active wallet address."""
     try:
-        # ✅ Utiliser list-active-addresses au lieu de active-address
-        result = execute_wallet_command(['list-active-addresses'])
+        # Build command with gRPC args from config
+        cmd = WALLET_CMD_PREFIX.copy()
+        cmd.extend(get_grpc_args())
+        cmd.append("list-active-addresses")
+        
+        logger.info(f"Executing command: {' '.join(cmd)}")
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+            bufsize=-1
+        )
         
         if result.returncode != 0:
             logger.error(f"list-active-addresses failed: {result.stderr}")
@@ -108,11 +122,10 @@ def get_active_address():
         output = result.stdout
         logger.info(f"Active address output: {output}")
         
-        # Parse the output to extract active signing address
+        # Parse output
         active_address = None
         active_version = None
         
-        # Look for address in "Addresses -- Signing" section
         signing_section = re.search(
             r'Addresses -- Signing(.*?)(?:Addresses -- Watch only|$)', 
             output, 
@@ -129,7 +142,7 @@ def get_active_address():
                 active_version = int(version_match.group(1))
         
         if not active_address:
-            logger.warning("No active address found in output")
+            logger.warning("No active address found")
             return {
                 "success": False,
                 "error": "No active address found"
@@ -143,16 +156,8 @@ def get_active_address():
             "version": active_version
         }
         
-    except subprocess.TimeoutExpired:
-        logger.error("list-active-addresses command timeout")
-        return {
-            "success": False,
-            "error": "Command timeout"
-        }
     except Exception as e:
         logger.error(f"Error getting active address: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return {
             "success": False,
             "error": str(e)
@@ -160,20 +165,23 @@ def get_active_address():
 
 
 def sync_wallet():
-    """
-    Sync the wallet with the blockchain.
-    
-    Returns:
-        dict: {
-            "success": bool,
-            "output": str,
-            "error": str (optional)
-        }
-    """
+    """Sync the wallet with the blockchain."""
     try:
+        # Build command with gRPC args from config
+        cmd = WALLET_CMD_PREFIX.copy()
+        cmd.extend(get_grpc_args())
+        cmd.append("sync")
+        
         logger.info("Starting wallet sync...")
         
-        result = execute_wallet_command(['sync'], timeout=SYNC_TIMEOUT)
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=SYNC_TIMEOUT,
+            bufsize=-1
+        )
         
         if result.returncode != 0:
             logger.error(f"Sync failed: {result.stderr}")
@@ -193,13 +201,154 @@ def sync_wallet():
         logger.error("Sync command timeout")
         return {
             "success": False,
-            "error": "Sync timeout - operation took too long"
+            "error": "Sync timeout"
         }
     except Exception as e:
         logger.error(f"Error syncing wallet: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return {
             "success": False,
             "error": str(e)
         }
+    
+# ...existing code...
+
+def list_master_addresses_service():
+    """List all master addresses."""
+    try:
+        # Build command with gRPC args from config
+        cmd = WALLET_CMD_PREFIX.copy()
+        cmd.extend(get_grpc_args())
+        cmd.append("list-master-addresses")
+        
+        logger.info(f"Listing master addresses with command: {' '.join(cmd)}")
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+            bufsize=-1
+        )
+        
+        if result.returncode != 0:
+            logger.error(f"list-master-addresses failed: {result.stderr}")
+            return {
+                "success": False,
+                "error": result.stderr or "Command failed"
+            }
+        
+        output = result.stdout
+        logger.info(f"Master addresses output: {output}")
+        
+        # Parse the output to extract all addresses
+        addresses = []
+        
+        # Split by separator "―"
+        sections = output.split('―')
+        
+        for section in sections:
+            if 'Address:' in section:
+                address_match = re.search(r'- Address:\s*([^\n]+?)(?:\s*\(active\))?$', section, re.MULTILINE)
+                version_match = re.search(r'- Version:\s*(\d+)', section)
+                is_active = '(active)' in section
+                
+                if address_match:
+                    address = address_match.group(1).strip()
+                    version = int(version_match.group(1)) if version_match else None
+                    
+                    addresses.append({
+                        "address": address,
+                        "version": version,
+                        "is_active": is_active
+                    })
+        
+        logger.info(f"Found {len(addresses)} master addresses")
+        
+        return {
+            "success": True,
+            "addresses": addresses
+        }
+        
+    except subprocess.TimeoutExpired:
+        logger.error("list-master-addresses command timeout")
+        return {
+            "success": False,
+            "error": "Command timed out"
+        }
+    except Exception as e:
+        logger.error(f"Error listing master addresses: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+def set_active_address_service(address):
+    """Set an address as the active master address."""
+    try:
+        # Build command with gRPC args from config
+        cmd = WALLET_CMD_PREFIX.copy()
+        cmd.extend(get_grpc_args())
+        cmd.extend(["set-active-master-address", address])
+        
+        logger.info(f"Setting active address with command: {' '.join(cmd)}")
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+            bufsize=-1
+        )
+        
+        if result.returncode != 0:
+            logger.error(f"set-active-master-address failed: {result.stderr}")
+            return {
+                "success": False,
+                "error": result.stderr or "Command failed"
+            }
+        
+        output = result.stdout
+        logger.info(f"Set active address output: {output}")
+        
+        # Force wallet sync after changing address
+        logger.info("Forcing wallet synchronization after address change...")
+        sync_result = sync_wallet()
+        
+        if not sync_result.get('success'):
+            logger.warning("Sync after address change failed, but continuing...")
+        
+        # Get updated balance for the new active address
+        logger.info("Getting balance for new active address...")
+        balance_data = get_wallet_balance()
+        
+        return {
+            "success": True,
+            "message": "Address set as active successfully",
+            "output": output,
+            "balance": balance_data,
+            "active_address": address
+        }
+        
+    except subprocess.TimeoutExpired:
+        logger.error("set-active-master-address command timeout")
+        return {
+            "success": False,
+            "error": "Command timed out"
+        }
+    except Exception as e:
+        logger.error(f"Error setting active address: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+def get_wallet_public_key():
+    """Get wallet public key (active address)."""
+    result = get_active_address()
+    if result.get('success'):
+        return result.get('active_address')
+    return None

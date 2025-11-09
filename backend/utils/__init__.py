@@ -1,18 +1,37 @@
 """
-Utility modules for the wallet backend.
+Utility functions package.
 """
-from .parser import parse_list_notes, parse_active_address
-from .command import execute_wallet_command, get_grpc_args
-from .file_helpers import save_transaction, load_history, save_history, load_config, save_config
+from .file_helpers import (
+    load_config,
+    save_config,
+    get_default_config,
+    load_transaction_history,
+    save_transaction_history,
+    add_transaction_to_history,
+    update_transaction_status,
+    get_tx_files_in_folder,
+    verify_transaction_file,
+    ensure_folder_exists
+)
+
+from .grpc import (
+    get_current_grpc_config,
+    get_grpc_args
+)
 
 __all__ = [
-    'parse_list_notes',
-    'parse_active_address',
-    'execute_wallet_command',
-    'get_grpc_args',
-    'save_transaction',
-    'load_history',
-    'save_history',
+    # File helpers
     'load_config',
     'save_config',
+    'get_default_config',
+    'load_transaction_history',
+    'save_transaction_history',
+    'add_transaction_to_history',
+    'update_transaction_status',
+    'get_tx_files_in_folder',
+    'verify_transaction_file',
+    'ensure_folder_exists',
+    # gRPC
+    'get_current_grpc_config',
+    'get_grpc_args'
 ]

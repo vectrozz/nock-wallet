@@ -33,14 +33,16 @@ function createNoteItem(note, index) {
   
   const nockAmount = nickToNock(note.value)
   
+  // ✅ Note row avec ID
   const header = document.createElement('div')
-  header.className = 'flex justify-between items-center px-6 py-4 hover:bg-slate-50 transition-colors'
+  header.id = `note-row-${index}` // ✅ AJOUTER L'ID ICI
+  header.className = 'note-row flex justify-between items-center px-6 py-4 transition-all duration-200'
   
   header.innerHTML = `
     <div class="flex items-center gap-4 flex-1">
       <input type="checkbox" 
              id="checkbox-${index}" 
-             class="note-checkbox"
+             class="note-checkbox w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
              onchange="window.handleNoteCheckboxChange(${index}, this.checked)">
       <div class="flex-1 cursor-pointer" onclick="window.toggleNoteDetails(${index})">
         <span class="text-sm text-slate-600 font-mono break-all">${truncateString(note.name, 50)}</span>
@@ -64,9 +66,10 @@ function createNoteItem(note, index) {
     </div>
   `
   
+  // ✅ Details row avec ID correct
   const details = document.createElement('div')
-  details.id = `details-${index}`
-  details.className = 'hidden px-6 py-4 bg-slate-50 border-t border-slate-200'
+  details.id = `note-details-${index}` // ✅ ID CORRECT
+  details.className = 'hidden px-6 py-4 bg-slate-50 border-t border-slate-200 note-details-panel'
   details.innerHTML = `
     <div class="space-y-4 text-sm">
       <div>
@@ -169,22 +172,46 @@ export function renderNotes() {
   updateSendSelectedButton()
 }
 
-// Toggle note details
+// ✅ Toggle note details - FONCTION CORRIGÉE
 export function toggleNoteDetails(index) {
-  const details = document.getElementById(`details-${index}`)
+  console.log('🔍 Toggling note details for index:', index)
+  
+  const detailsRow = document.getElementById(`note-details-${index}`)
+  const noteRow = document.getElementById(`note-row-${index}`)
   const arrow = document.getElementById(`arrow-${index}`)
   
-  if (details.classList.contains('hidden')) {
-    details.classList.remove('hidden')
-    arrow.style.transform = 'rotate(180deg)'
+  console.log('Details row:', detailsRow)
+  console.log('Note row:', noteRow)
+  
+  if (detailsRow && noteRow) {
+    if (detailsRow.classList.contains('hidden')) {
+      // Show details
+      console.log('✅ Showing details for note', index)
+      detailsRow.classList.remove('hidden')
+      detailsRow.classList.add('active')
+      noteRow.classList.add('selected')
+      if (arrow) {
+        arrow.style.transform = 'rotate(180deg)'
+      }
+    } else {
+      // Hide details
+      console.log('❌ Hiding details for note', index)
+      detailsRow.classList.add('hidden')
+      detailsRow.classList.remove('active')
+      noteRow.classList.remove('selected')
+      if (arrow) {
+        arrow.style.transform = 'rotate(0deg)'
+      }
+    }
   } else {
-    details.classList.add('hidden')
-    arrow.style.transform = 'rotate(0deg)'
+    console.error('❌ Elements not found for index', index)
   }
 }
 
 // Handle checkbox change
 export function handleNoteCheckboxChange(index, checked) {
+  console.log('📋 Checkbox changed for note', index, ':', checked)
+  
   if (checked) {
     selectedNotes.add(index)
   } else {

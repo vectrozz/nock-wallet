@@ -3,7 +3,7 @@ Nockchain Wallet Backend - Main application entry point.
 """
 from flask import Flask
 from flask_cors import CORS
-from api import api
+#from api import *
 from config import FLASK_HOST, FLASK_PORT, FLASK_DEBUG, CORS_ORIGINS
 from logger import setup_logger
 
@@ -16,8 +16,10 @@ app = Flask(__name__)
 # Configure CORS
 CORS(app, origins=CORS_ORIGINS)
 
-# Register API blueprint
-app.register_blueprint(api)
+from api import register_routes
+register_routes(app)
+
+
 
 # Root endpoint
 @app.route('/')
