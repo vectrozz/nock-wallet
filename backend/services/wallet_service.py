@@ -164,7 +164,7 @@ def get_active_address():
         }
 
 
-def sync_wallet():
+def sync_wallet_NOT_USED():
     """Sync the wallet with the blockchain."""
     try:
         # Build command with gRPC args from config
@@ -210,7 +210,6 @@ def sync_wallet():
             "error": str(e)
         }
     
-# ...existing code...
 
 def list_master_addresses_service():
     """List all master addresses."""
@@ -314,8 +313,8 @@ def set_active_address_service(address):
         logger.info(f"Set active address output: {output}")
         
         # Force wallet sync after changing address
-        logger.info("Forcing wallet synchronization after address change...")
-        sync_result = sync_wallet()
+        #logger.info("Forcing wallet synchronization after address change...")
+        #sync_result = sync_wallet()
         
         if not sync_result.get('success'):
             logger.warning("Sync after address change failed, but continuing...")
@@ -352,3 +351,116 @@ def get_wallet_public_key():
     if result.get('success'):
         return result.get('active_address')
     return None
+
+
+def import_seedphrase_service(seedphrase, version):
+    """Import keys from seed phrase."""
+    try:
+        logger.info(f"Importing seedphrase with version: {version}")
+        
+        # Build command with gRPC args
+        cmd = WALLET_CMD_PREFIX.copy()
+        cmd.extend(get_grpc_args())
+        cmd.extend([
+            "import-keys",
+            "--seedphrase", seedphrase,
+            "--version", str(version)
+        ])
+        
+        logger.info(f"Executing command: {' '.join([cmd[0], cmd[1], '--seedphrase', '[REDACTED]', '--version', str(version)])}")
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+            bufsize=-1
+        )
+        
+        if result.returncode != 0:
+            logger.error(f"Import seedphrase failed: {result.stderr}")
+            return {
+                "success": False,
+                "error": result.stderr or "Import failed"
+            }
+        
+        logger.info("Import successful, loading...")
+        
+        # Force wallet sync
+        #sync_result = sync_wallet()
+        
+        return {
+            "success": True,
+            "message": f"Keys imported from seed phrase (version {version}) successfully",
+            "output": result.stdout
+        }
+        
+    except subprocess.TimeoutExpired:
+        logger.error("Import seedphrase timeout")
+        return {
+            "success": False,
+            "error": "Command timed out"
+        }
+    except Exception as e:
+        logger.error(f"Error importing seedphrase: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+def show_seedphrase_service():
+    """Show wallet seed phrase."""
+    try:
+        logger.info("Retrieving seedphrase...")
+        
+        # Build command with gRPC args
+        cmd = WALLET_CMD_PREFIX.copy()
+        cmd.extend(get_grpc_args())
+        cmd.append("show-seedphrase")
+        
+        logger.info(f"Executing command: {' '.join(cmd)}")
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+            bufsize=-1
+        )
+        
+        if result.returncode != 0:
+            logger.error(f"Show seedphrase failed: {result.stderr}")
+            return {
+                "success": False,
+                "error": result.stderr or "Failed to retrieve seedphrase"
+            }
+        
+        output = result.stdout.strip()
+        logger.info("Seedphrase retrieved successfully")
+        
+        # Extract seedphrase if there's a label
+        seedphrase = output
+        if "Seed Phrase:" in output:
+            seedphrase = output.split("Seed Phrase:")[1].strip()
+        
+        return {
+            "success": True,
+            "seedphrase": seedphrase,
+            "raw_output": output
+        }
+        
+    except subprocess.TimeoutExpired:
+        logger.error("Show seedphrase timeout")
+        return {
+            "success": False,
+            "error": "Command timed out"
+        }
+    except Exception as e:
+        logger.error(f"Error showing seedphrase: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }

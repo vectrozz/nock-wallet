@@ -21,7 +21,9 @@ from services.wallet_service import (
     get_active_address,
     list_master_addresses_service,
     set_active_address_service,
-    sync_wallet
+    #sync_wallet,
+    import_seedphrase_service,
+    show_seedphrase_service
 )
 
 from utils.file_helpers import load_config, save_config, get_default_config
@@ -145,7 +147,7 @@ def register_routes(app):
     @app.route('/api/sync', methods=['POST'])
     def sync():
         """Sync wallet with blockchain."""
-        result = sync_wallet()
+        #result = sync_wallet()
         
         if not result.get('success'):
             return jsonify(result), 500
@@ -381,27 +383,52 @@ def register_routes(app):
             }), 500
 
 
-    @app.route('/api/import-from-seedphrase', methods=['POST'])
+    @app.route('/api/import-seedphrase', methods=['POST'])
     def import_from_seedphrase():
         """Import keys from seedphrase."""
-        data = request.json
-        
-        seedphrase = data.get('seedphrase')
-        version = data.get('version')
-        
-        if not seedphrase or version is None:
+        try:
+            data = request.json
+            seedphrase = data.get('seedphrase')
+            version = data.get('version')
+            
+            if not seedphrase or version is None:
+                return jsonify({
+                    "success": False,
+                    "error": "Missing seedphrase or version"
+                }), 400
+            
+            result = import_seedphrase_service(seedphrase, version)  # ← Fonction corrigée
+            
+            if not result.get('success'):
+                return jsonify(result), 500
+            
+            return jsonify(result)
+            
+        except Exception as e:
+            logger.error(f"Error in import_from_seedphrase: {str(e)}")
             return jsonify({
                 "success": False,
-                "error": "Missing seedphrase or version"
-            }), 400
-        
-        result = import_keys_service(seedphrase=seedphrase, version=version)
-        
-        if not result.get('success'):
-            return jsonify(result), 500
-        
-        return jsonify(result)
+                "error": str(e)
+            }), 500
 
+
+    @app.route('/api/show-seedphrase', methods=['GET'])
+    def show_seedphrase():
+        """Show seedphrase."""
+        try:
+            result = show_seedphrase_service()  # ← Utilise la bonne fonction
+            
+            if not result.get('success'):
+                return jsonify(result), 500
+            
+            return jsonify(result)
+            
+        except Exception as e:
+            logger.error(f"Error in show_seedphrase: {str(e)}")
+            return jsonify({
+                "success": False,
+                "error": str(e)
+            }), 500
 
     @app.route('/api/export-keys', methods=['POST'])
     def export_keys():
