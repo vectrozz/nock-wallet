@@ -114,7 +114,7 @@ export function getExportKeysUrl() {
   return `${API_BASE}/api/export-keys`
 }
 
-// Import keys
+// Import keys from seed (existing - for backward compatibility)
 export async function importKeys(data) {
   const response = await fetch(`${API_BASE}/api/import-keys`, {
     method: 'POST',
@@ -122,6 +122,21 @@ export async function importKeys(data) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(data)
+  })
+  return response.json()
+}
+
+// ✅ NEW: Import keys from seedphrase with version
+export async function importKeysFromSeedphrase(seed, version) {
+  const response = await fetch(`${API_BASE}/api/import-keys-seedphrase`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      seedphrase: seed,
+      version: version
+    })
   })
   return response.json()
 }

@@ -13,8 +13,8 @@ import {
 import { 
   renderNotes, 
   toggleNoteDetails, 
-  handleNoteCheckboxChange,  // ✅ Déjà importé
-  updateSendSelectedButton   // ✅ AJOUTER
+  handleNoteCheckboxChange,
+  updateSendSelectedButton
 } from './components/notes.js'
 
 import { 
@@ -49,7 +49,79 @@ import {
   closeModal 
 } from './ui/modals.js'
 
+import { 
+  showLoadingToast, 
+  showSuccessToast, 
+  showErrorToast 
+} from './ui/toast.js'
+
+import { importKeys, importFromSeedphrase } from './api/wallet.js'  // ✅ AJOUTER importFromSeedphrase
+
 console.log('📦 Main.js loaded')
+
+// ✅ Import keys from seedphrase function
+async function importKeysFromSeedphrase() {
+  const seedphraseInput = document.getElementById('seedphraseInput')
+  const seedphraseVersion = document.getElementById('seedphraseVersion')
+  const importSeedphraseBtn = document.getElementById('importSeedphraseBtn')
+  
+  const seedphrase = seedphraseInput?.value.trim()
+  const version = seedphraseVersion?.value
+  
+  if (!seedphrase) {
+    alert('⚠️ Please enter a seed phrase')
+    return
+  }
+  
+  if (version === '') {
+    alert('⚠️ Please select a version')
+    return
+  }
+  
+  // Disable button during import
+  if (importSeedphraseBtn) {
+    importSeedphraseBtn.disabled = true
+    importSeedphraseBtn.innerHTML = '<span class="loading-spinner"></span> Importing...'
+  }
+  
+  const loadingToast = showLoadingToast('Importing keys from seedphrase...')
+  
+  try {
+    console.log('🌱 Importing keys from seedphrase, version:', version)
+    
+    // ✅ UTILISER LA BONNE FONCTION
+    const response = await importFromSeedphrase(seedphrase, parseInt(version))
+    
+    document.body.removeChild(loadingToast)
+    
+    if (response.success) {
+      showSuccessToast('Keys imported successfully from seedphrase!')
+      
+      // Clear inputs
+      if (seedphraseInput) seedphraseInput.value = ''
+      if (seedphraseVersion) seedphraseVersion.value = ''
+      
+      // Refresh balance to show new keys
+      setTimeout(() => {
+        updateBalance()
+      }, 500)
+      
+      console.log('✅ Keys imported from seedphrase:', response)
+    } else {
+      showErrorToast(response.error || 'Failed to import keys from seedphrase')
+    }
+  } catch (error) {
+    console.error('❌ Error importing keys from seedphrase:', error)
+    document.body.removeChild(loadingToast)
+    showErrorToast(error.message || 'Network error')
+  } finally {
+    // Re-enable button
+    if (importSeedphraseBtn) {
+      importSeedphraseBtn.disabled = false
+      importSeedphraseBtn.innerHTML = '<span class="btn-icon">🚀</span><span>Import from Seedphrase</span>'
+    }
+  }
+}
 
 // Make functions globally accessible for onclick handlers
 window.updateBalance = updateBalance
@@ -61,6 +133,7 @@ window.sendTransactionHandler = sendTransactionHandler
 window.openImportModal = openImportModal
 window.importKeysHandler = importKeysHandler
 window.importFromFileHandler = importFromFileHandler
+window.importKeysFromSeedphrase = importKeysFromSeedphrase  // ✅ AJOUTER
 window.openAddressesModal = openAddressesModal
 window.setActiveAddress = setActiveAddress
 window.copyAddress = copyAddress
@@ -68,8 +141,8 @@ window.openHistoryModal = openHistoryModal
 window.handleGrpcServerChange = handleGrpcServerChange
 window.updateCustomGrpcServer = updateCustomGrpcServer
 window.closeModal = closeModal
-window.handleNoteCheckboxChange = handleNoteCheckboxChange  // ✅ AJOUTER
-window.toggleNoteDetails = toggleNoteDetails                // ✅ AJOUTER
+window.handleNoteCheckboxChange = handleNoteCheckboxChange
+window.toggleNoteDetails = toggleNoteDetails
 
 // Close modals on background click
 document.addEventListener('click', (e) => {
