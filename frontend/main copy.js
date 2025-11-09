@@ -306,7 +306,8 @@ async function setActiveAddress(address, version) {
     const toast = showLoadingToast('Setting active address...')
     
     const response = await axios.post(`${API_BASE}/api/set-active-address`, {
-      address: address
+      address: address,
+      grpc_config: grpcServerConfig
     })
     
     console.log('Set active address response:', response.data)
@@ -552,25 +553,144 @@ function copyToClipboard(text) {
   })
 }
 
-// Update Balance Function - Modified to also load active address
+// Update Balance Function - Modified to send grpc config
 async function updateBalance() {
   try {
     // Show loading animation
     loadingDisplay.classList.remove('hidden')
     balanceDisplay.classList.add('hidden')
     
-    const response = await axios.get(`${API_BASE}/api/balance`)
-    const data = response.data
+    // Send gRPC config with request
+    const response = await axios.post(`${API_BASE}/api/balance`, {
+      grpc_config: grpcServerConfig
+    })
     
     // Hide loading animation
     loadingDisplay.classList.add('hidden')
     balanceDisplay.classList.remove('hidden')
     
+    const data = response.data
+    
     if (data.error) {
-      document.getElementById('errorMessage').textContent = data.error
-      errorDisplay.classList.remove('hidden')
-      balanceContent.classList.add('hidden')
+      // Show balance UI with zero values
+      errorDisplay.classList.add('hidden')
+      balanceContent.classList.remove('hidden')
+      
+      // Set balance to zero
+      notesCount.textContent = '0'
+      totalAssets.innerHTML = `
+        <span class="text-4xl font-bold">0</span>
+        <span class="text-lg text-blue-100 ml-2">nock</span>
+        <br>
+        <span class="text-lg text-blue-200">0</span>
+        <span class="text-sm text-blue-200 ml-1">nick</span>
+      `
+      
+      // Clear notes
+      allNotes = []
+      selectedNotes.clear()
+      
+      // Show error message BEFORE the notes list
+      const errorBanner = document.createElement('div')
+      errorBanner.id = 'rpcErrorBanner'
+      errorBanner.className = 'mx-8 my-6'
+      
+      if (data.is_rpc_error) {
+        errorBanner.innerHTML = `
+          <div class="bg-amber-50 border-l-4 border-amber-500 rounded-lg shadow-lg overflow-hidden">
+            <div class="p-6">
+              <div class="flex items-start gap-4">
+                <div class="text-4xl flex-shrink-0">🔌</div>
+                <div class="flex-1">
+                  <h3 class="text-xl font-bold text-amber-800 mb-2">RPC Service Unavailable</h3>
+                  <p class="text-amber-700 mb-4">Unable to connect to the Nockchain RPC server. Your wallet data is safe, just not accessible right now.</p>
+                  
+                  <details class="mb-4">
+                    <summary class="cursor-pointer text-sm font-semibold text-amber-800 hover:text-amber-900 mb-2">
+                      📋 What this means (click to expand)
+                    </summary>
+                    <div class="bg-white rounded-lg p-4 border border-amber-200 mt-2">
+                      <ul class="text-sm text-slate-700 space-y-2 list-disc list-inside">
+                        <li>The Nockchain RPC service is temporarily down or unreachable</li>
+                        <li>Your wallet keys and data are stored locally and are safe</li>
+                        <li>No transactions can be synced until the service is available</li>
+                        <li>Try refreshing in a few moments</li>
+                      </ul>
+                    </div>
+                  </details>
+                  
+                  <details>
+                    <summary class="cursor-pointer text-sm font-semibold text-amber-800 hover:text-amber-900 mb-2">
+                      🔧 Technical Details (click to expand)
+                    </summary>
+                    <div class="bg-slate-900 text-slate-100 rounded-lg p-4 text-xs font-mono mt-2 max-h-64 overflow-y-auto">
+                      <pre class="whitespace-pre-wrap break-all text-slate-300">${data.error_details || 'No details available'}</pre>
+                    </div>
+                  </details>
+                  
+                  <button onclick="updateBalance()" class="mt-4 btn-primary btn-blue">
+                    🔄 Retry Connection
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `
+      } else {
+        errorBanner.innerHTML = `
+          <div class="bg-red-50 border-l-4 border-red-500 rounded-lg shadow-lg overflow-hidden">
+            <div class="p-6">
+              <div class="flex items-start gap-4">
+                <div class="text-4xl flex-shrink-0">⚠️</div>
+                <div class="flex-1">
+                  <h3 class="text-xl font-bold text-red-800 mb-2">${data.error}</h3>
+                  <p class="text-red-700 mb-4">An error occurred while fetching your balance.</p>
+                  
+                  <details>
+                    <summary class="cursor-pointer text-sm font-semibold text-red-800 hover:text-red-900 mb-2">
+                      🔧 Error Details (click to expand)
+                    </summary>
+                    <div class="bg-slate-900 text-slate-100 rounded-lg p-4 text-xs font-mono mt-2 max-h-64 overflow-y-auto">
+                      <pre class="whitespace-pre-wrap break-all text-slate-300">${data.error_details || 'No details available'}</pre>
+                    </div>
+                  </details>
+                  
+                  <button onclick="updateBalance()" class="mt-4 btn-primary btn-blue">
+                    🔄 Try Again
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `
+      }
+      
+      // Remove any existing error banner
+      const existingBanner = document.getElementById('rpcErrorBanner')
+      if (existingBanner) {
+        existingBanner.remove()
+      }
+      
+      // Insert error banner before notes list
+      notesList.parentElement.insertBefore(errorBanner, notesList)
+      
+      // Render empty notes list
+      renderNotes()
+      updateSendSelectedButton()
+      
+      // Try to load active address anyway (it might work even if list-notes fails)
+      try {
+        await loadActiveAddress()
+      } catch (e) {
+        console.error('Failed to load active address:', e)
+      }
     } else {
+      // Remove error banner if it exists
+      const existingBanner = document.getElementById('rpcErrorBanner')
+      if (existingBanner) {
+        existingBanner.remove()
+      }
+      
       errorDisplay.classList.add('hidden')
       balanceContent.classList.remove('hidden')
       
@@ -606,7 +726,64 @@ async function updateBalance() {
   } catch (error) {
     // Hide loading animation on error
     loadingDisplay.classList.add('hidden')
-    alert('Error: ' + error.message)
+    balanceDisplay.classList.remove('hidden')
+    
+    // Show balance UI with zero values
+    errorDisplay.classList.add('hidden')
+    balanceContent.classList.remove('hidden')
+    
+    // Set balance to zero
+    notesCount.textContent = '0'
+    totalAssets.innerHTML = `
+      <span class="text-4xl font-bold">0</span>
+      <span class="text-lg text-blue-100 ml-2">nock</span>
+      <br>
+      <span class="text-lg text-blue-200">0</span>
+      <span class="text-sm text-blue-200 ml-1">nick</span>
+    `
+    
+    // Clear notes
+    allNotes = []
+    selectedNotes.clear()
+    
+    // Show network error banner
+    const errorBanner = document.createElement('div')
+    errorBanner.id = 'rpcErrorBanner'
+    errorBanner.className = 'mx-8 my-6'
+    errorBanner.innerHTML = `
+      <div class="bg-red-50 border-l-4 border-red-500 rounded-lg shadow-lg overflow-hidden">
+        <div class="p-6">
+          <div class="flex items-start gap-4">
+            <div class="text-4xl flex-shrink-0">❌</div>
+            <div class="flex-1">
+              <h3 class="text-xl font-bold text-red-800 mb-2">Network Error</h3>
+              <p class="text-red-700 mb-4">Failed to communicate with the wallet backend.</p>
+              
+              <div class="bg-white rounded-lg p-4 border border-red-200 mb-4">
+                <p class="text-sm text-slate-700">${error.message}</p>
+              </div>
+              
+              <button onclick="updateBalance()" class="btn-primary btn-blue">
+                🔄 Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `
+    
+    // Remove any existing error banner
+    const existingBanner = document.getElementById('rpcErrorBanner')
+    if (existingBanner) {
+      existingBanner.remove()
+    }
+    
+    // Insert error banner before notes list
+    notesList.parentElement.insertBefore(errorBanner, notesList)
+    
+    // Render empty notes list
+    renderNotes()
+    updateSendSelectedButton()
   }
 }
 
@@ -878,7 +1055,8 @@ async function createTransaction() {
       amount_nock: parseFloat(amount),
       fee: parseInt(fee),
       selected_notes: selectedNoteNames,
-      use_all_funds: useAllFunds
+      use_all_funds: useAllFunds,
+      grpc_config: grpcServerConfig
     })
 
     if (response.data.success) {

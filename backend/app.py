@@ -24,180 +24,204 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})  # Permet toutes les origines en développement
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
-app.config['TX_FOLDER'] = os.path.join(os.path.dirname(__file__), 'txs')  # Use local txs folder
+app.config['TX_FOLDER'] = os.path.join(os.path.dirname(__file__), 'txs')
 app.config['HISTORY_FILE'] = os.path.join(os.path.dirname(__file__), 'wallet_history.json')
+app.config['CONFIG_FILE'] = os.path.join(os.path.dirname(__file__), 'wallet_config.json')  # ← NOUVEAU
 
 # Check if running in Docker
 NOCKCHAIN_WALLET_HOST = os.getenv('NOCKCHAIN_WALLET_HOST')
 if NOCKCHAIN_WALLET_HOST:
-    # Running in Docker - wallet commands will be executed in the wallet container
     WALLET_CMD_PREFIX = ['docker', 'exec', 'nockchain-wallet-service', 'nockchain-wallet']
     logger.info(f"Running in Docker mode - wallet container: {NOCKCHAIN_WALLET_HOST}")
 else:
-    # Running locally - use local nockchain-wallet
     WALLET_CMD_PREFIX = ['nockchain-wallet']
     logger.info("Running in local mode - using local nockchain-wallet")
 
-# Create txs folder if it doesn't exist
+# Create folders if they don't exist
 os.makedirs(app.config['TX_FOLDER'], exist_ok=True)
 
-def get_wallet_public_key():
-    """Get the wallet's active address using list-active-addresses."""
+# ═══════════════════════════════════════════════════════════
+# CONFIG FILE MANAGEMENT
+# ═══════════════════════════════════════════════════════════
+
+def load_config():
+    """Load wallet configuration from JSON file."""
+    if os.path.exists(app.config['CONFIG_FILE']):
+        try:
+            with open(app.config['CONFIG_FILE'], 'r') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            logger.warning("Could not decode wallet_config.json, using defaults")
+            return get_default_config()
+    return get_default_config()
+
+def save_config(config):
+    """Save wallet configuration to JSON file."""
+    with open(app.config['CONFIG_FILE'], 'w') as f:
+        json.dump(config, indent=2, fp=f)
+    logger.info(f"Configuration saved: {config}")
+
+def get_default_config():
+    """Get default configuration."""
+    return {
+        "grpc": {
+            "type": "public",
+            "customAddress": ""
+        }
+    }
+
+def get_current_grpc_config():
+    """Get current gRPC configuration from config file."""
+    config = load_config()
+    return config.get('grpc', get_default_config()['grpc'])
+
+# ═══════════════════════════════════════════════════════════
+# NEW CONFIG ENDPOINTS
+# ═══════════════════════════════════════════════════════════
+
+@app.route('/api/config', methods=['GET'])
+def get_config():
+    """Get current wallet configuration."""
     try:
-        cmd = WALLET_CMD_PREFIX + ['list-active-addresses']
-        logger.info("Getting active address with command: %s", " ".join(cmd))
+        config = load_config()
+        return jsonify({
+            "success": True,
+            "config": config
+        })
+    except Exception as e:
+        logger.error(f"Error getting config: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/config', methods=['POST'])
+def update_config():
+    """Update wallet configuration."""
+    try:
+        data = request.get_json()
         
+        # Load current config
+        config = load_config()
+        
+        # Update gRPC config if provided
+        if 'grpc' in data:
+            config['grpc'] = data['grpc']
+            logger.info(f"gRPC config updated: {data['grpc']}")
+        
+        # Save updated config
+        save_config(config)
+        
+        return jsonify({
+            "success": True,
+            "config": config,
+            "message": "Configuration updated successfully"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating config: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+# ═══════════════════════════════════════════════════════════
+# GRPC HELPERS (simplified)
+# ═══════════════════════════════════════════════════════════
+
+def get_grpc_args():
+    """Build gRPC command arguments from config file."""
+    grpc_config = get_current_grpc_config()
+    args = []
+    
+    client_type = grpc_config.get('type', 'public')
+    
+    if client_type == 'public':
+        args.extend(['--client', 'public'])
+        
+    elif client_type == 'private':
+        args.extend(['--client', 'private'])
+        args.extend(['--private-grpc-server-port', '5555'])
+        
+    elif client_type == 'custom':
+        custom_address = grpc_config.get('customAddress', '')
+        if custom_address:
+            args.extend(['--client', 'private'])
+            if ':' in custom_address:
+                port = custom_address.split(':')[1]
+                args.extend(['--private-grpc-server-port', port])
+            else:
+                args.extend(['--private-grpc-server-port', '5555'])
+    
+    return args
+
+# ═══════════════════════════════════════════════════════════
+# UPDATE ALL EXISTING ROUTES (remove grpc_config parameter)
+# ═══════════════════════════════════════════════════════════
+
+@app.route('/api/balance', methods=['GET', 'POST'])
+def get_balance():
+    """Get wallet balance."""
+    try:
+        balance_data = get_wallet_balance()  # ← Plus de paramètre grpc_config
+        return jsonify(balance_data)
+    except Exception as e:
+        logger.error(f"Error in get_balance endpoint: {str(e)}")
+        return jsonify({
+            "notes": [],
+            "notes_count": 0,
+            "total_assets": 0,
+            "error": "Internal Server Error",
+            "error_details": str(e)
+        }), 500
+
+def get_wallet_balance():  # ← Plus de paramètre grpc_config
+    """Get wallet balance by parsing list-notes output."""
+    try:
+        # Build command with gRPC args from config
+        cmd = WALLET_CMD_PREFIX.copy()
+        cmd.extend(get_grpc_args())  # ← Lit depuis le fichier config
+        cmd.append("list-notes")
+        
+        logger.info(f"Executing command: {' '.join(cmd)}")
+        
+        # Execute list-notes command
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            check=True,
-            timeout=30
-        )
-        
-        output = result.stdout
-        logger.info(f"Active address command output received: {len(output)} chars")
-        
-        # Parse the output to extract active signing address
-        # Look for address in "Addresses -- Signing" section
-        signing_section = re.search(r'Addresses -- Signing(.*?)(?:Addresses -- Watch only|$)', output, re.DOTALL)
-        if signing_section:
-            address_match = re.search(r'- Address:\s*([^\n]+)', signing_section.group(1))
-            
-            if address_match:
-                address = address_match.group(1).strip()
-                logger.info(f"Active wallet address extracted: {address[:50]}...")
-                return address
-        
-        logger.warning("Could not extract active address from output")
-        return None
-        
-    except subprocess.TimeoutExpired:
-        logger.error("Command timed out")
-        return None
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Error getting active address: {e.stderr}")
-        return None
-    except Exception as e:
-        logger.error(f"Unexpected error getting active address: {str(e)}")
-        return None
-
-def get_tx_files_in_folder():
-    """Get all .tx files in the txs folder with their modification times."""
-    tx_files = {}
-    if os.path.exists(app.config['TX_FOLDER']):
-        for filename in os.listdir(app.config['TX_FOLDER']):
-            if filename.endswith('.tx'):
-                filepath = os.path.join(app.config['TX_FOLDER'], filename)
-                tx_files[filename] = os.path.getmtime(filepath)
-    return tx_files
-
-def verify_transaction_file(tx_name, old_files, timeout=5):
-    """Verify that the transaction file was created and matches the transaction name."""
-    expected_filename = f"{tx_name}.tx"
-    start_time = time.time()
-    
-    logger.info(f"Verifying transaction file: {expected_filename}")
-    
-    while time.time() - start_time < timeout:
-        current_files = get_tx_files_in_folder()
-        
-        # Check if the expected file exists and is new
-        if expected_filename in current_files:
-            # If it's a new file (not in old_files) or recently modified
-            if expected_filename not in old_files or current_files[expected_filename] > old_files.get(expected_filename, 0):
-                logger.info(f"✓ Transaction file verified: {expected_filename}")
-                return True
-        
-        time.sleep(0.1)
-    
-    logger.warning(f"Transaction file verification failed: {expected_filename} not found")
-    return False
-
-def load_transaction_history():
-    """Load transaction history from JSON file."""
-    if os.path.exists(app.config['HISTORY_FILE']):
-        try:
-            with open(app.config['HISTORY_FILE'], 'r') as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            logger.warning("Could not decode wallet_history.json, starting fresh")
-            return []
-    return []
-
-def save_transaction_history(history):
-    """Save transaction history to JSON file."""
-    with open(app.config['HISTORY_FILE'], 'w') as f:
-        json.dump(history, indent=2, fp=f)
-    logger.info(f"Transaction history saved: {len(history)} transactions")
-
-def add_transaction_to_history(tx_hash, recipient, amount_nock, amount_nick, fee_nick, notes_used, signer, status='created'):
-    """Add a new transaction to history."""
-    history = load_transaction_history()
-    
-    transaction = {
-        'hash': tx_hash,
-        'recipient': recipient,
-        'amount_nock': amount_nock,
-        'amount_nick': amount_nick,
-        'fee_nick': fee_nick,
-        'notes_used': notes_used,
-        'signer': signer,
-        'status': status,
-        'created_at': datetime.now().isoformat(),
-        'updated_at': datetime.now().isoformat()
-    }
-    
-    history.append(transaction)
-    save_transaction_history(history)
-    
-    logger.info(f"Transaction added to history: {tx_hash} - Status: {status} - Signer: {signer}")
-    return transaction
-
-def update_transaction_status(tx_hash, new_status):
-    """Update the status of a transaction in history."""
-    history = load_transaction_history()
-    updated = False
-    
-    for tx in history:
-        if tx['hash'] == tx_hash:
-            tx['status'] = new_status
-            tx['updated_at'] = datetime.now().isoformat()
-            if new_status == 'sent':
-                tx['sent_at'] = datetime.now().isoformat()
-            updated = True
-            logger.info(f"Transaction status updated: {tx_hash} -> {new_status}")
-            break
-    
-    if updated:
-        save_transaction_history(history)
-    else:
-        logger.warning(f"Transaction {tx_hash} not found in history")
-    
-    return updated
-
-def get_wallet_balance():
-    """Get wallet balance by parsing list-notes output."""
-    try:
-        # Execute list-notes command
-        result = subprocess.run(
-            WALLET_CMD_PREFIX + ["list-notes"],
-            capture_output=True,
-            text=True,
-            check=True,
+            check=False,  # Don't raise exception on non-zero exit
             timeout=120,
             bufsize=-1
         )
         
         output = result.stdout
+        error_output = result.stderr
         
-        # Remove ANSI escape codes (color codes) from output
-        ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
-        output = ansi_escape.sub('', output)
+        logger.info(f"list-notes command executed - return code: {result.returncode}, output length: {len(output)} characters")
         
-        logger.info(f"list-notes command executed - output length: {len(output)} characters (ANSI codes removed)")
+        # Check if command failed
+        if result.returncode != 0:
+            logger.error(f"list-notes command failed with exit code {result.returncode}")
+            logger.error(f"STDOUT: {output}")
+            logger.error(f"STDERR: {error_output}")
+            
+            # Check if it's an RPC error
+            full_output = output + "\n" + error_output
+            is_rpc_error = "gRPC" in full_output or "service is currently unavailable" in full_output or "upstream request timeout" in full_output
+            
+            error_message = "RPC Service Unavailable" if is_rpc_error else "Command Failed"
+            
+            return {
+                "notes": [],
+                "notes_count": 0,
+                "total_assets": 0,
+                "error": error_message,
+                "error_details": full_output,
+                "is_rpc_error": is_rpc_error
+            }
         
         # Parse the output to extract notes
         notes = []
@@ -363,15 +387,26 @@ def get_wallet_balance():
         
     except subprocess.TimeoutExpired:
         logger.error("list-notes command timeout")
-        return {"notes": [], "notes_count": 0, "total_assets": 0, "error": "Command timeout"}
-    except subprocess.CalledProcessError as e:
-        logger.error(f"list-notes command failed: {e.stderr}")
-        return {"notes": [], "notes_count": 0, "total_assets": 0, "error": str(e)}
+        return {
+            "notes": [], 
+            "notes_count": 0, 
+            "total_assets": 0, 
+            "error": "Command Timeout",
+            "error_details": "The list-notes command took too long to respond (>120s)",
+            "is_rpc_error": False
+        }
     except Exception as e:
         logger.error(f"Unexpected error in get_wallet_balance: {str(e)}")
         import traceback
         traceback.print_exc()
-        return {"notes": [], "notes_count": 0, "total_assets": 0, "error": str(e)}
+        return {
+            "notes": [], 
+            "notes_count": 0, 
+            "total_assets": 0, 
+            "error": "Unexpected Error",
+            "error_details": str(e) + "\n" + traceback.format_exc(),
+            "is_rpc_error": False
+        }
 
 @app.route("/api/balance")
 def api_balance():
@@ -1049,7 +1084,10 @@ def show_seedphrase():
 def get_active_address():
     """Get the currently active address"""
     try:
-        cmd = WALLET_CMD_PREFIX + ["list-active-addresses"]
+        cmd = WALLET_CMD_PREFIX.copy()
+        cmd.extend(get_grpc_args())  # ← Lit depuis le config file
+        cmd.append("list-active-addresses")
+        
         logger.info("Getting active address with command: %s", " ".join(cmd))
         
         result = subprocess.run(
@@ -1101,11 +1139,15 @@ def get_active_address():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/list-master-addresses', methods=['GET'])
+@app.route('/api/list-master-addresses', methods=['GET', 'POST'])
 def list_master_addresses():
     """List all master addresses"""
     try:
-        cmd = WALLET_CMD_PREFIX + ["list-master-addresses"]
+        # Plus besoin de récupérer grpc_config de la requête !
+        cmd = WALLET_CMD_PREFIX.copy()
+        cmd.extend(get_grpc_args())  # ← Lit depuis le config file
+        cmd.append("list-master-addresses")
+        
         logger.info("Listing master addresses with command: %s", " ".join(cmd))
         
         result = subprocess.run(
@@ -1156,20 +1198,19 @@ def list_master_addresses():
         logger.error("Error listing master addresses: %s", str(e))
         return jsonify({"success": False, "error": str(e)}), 500
 
+
 @app.route('/api/set-active-address', methods=['POST'])
 def set_active_address():
     """Set an address as the active master address"""
     try:
         data = request.get_json()
         address = data.get('address')
+        # Plus besoin de grpc_config dans la requête !
         
-        if not address:
-            return jsonify({
-                "success": False,
-                "error": "Address is required"
-            }), 400
+        cmd = WALLET_CMD_PREFIX.copy()
+        cmd.extend(get_grpc_args())  # ← Lit depuis le config file
+        cmd.extend(["set-active-master-address", address])
         
-        cmd = WALLET_CMD_PREFIX + ["set-active-master-address", address]
         logger.info("Setting active address with command: %s", " ".join(cmd))
         
         result = subprocess.run(

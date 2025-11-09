@@ -47,6 +47,69 @@
 
       <!-- Balance Display -->
       <div id="balanceDisplay" class="hidden">
+        <!-- gRPC Server Selector -->
+        <div class="bg-slate-800 border-b border-slate-700">
+          <div class="max-w-7xl mx-auto px-8 py-4">
+            <div class="flex items-center gap-6">
+              <div class="flex items-center gap-2">
+                <span class="text-slate-300 font-semibold text-sm">🌐 gRPC Server:</span>
+              </div>
+              
+              <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2 cursor-pointer group">
+                  <input 
+                    type="radio" 
+                    id="grpcPublic"
+                    name="grpcServer" 
+                    value="public" 
+                    checked
+                    class="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                    onchange="window.handleGrpcServerChange('public')">
+                <span class="text-slate-200 group-hover:text-white transition-colors">
+                  Public <span class="text-slate-400 text-xs">(nockchain-api.zorp.io:443)</span>
+                </span>
+                </label>
+                
+                <label class="flex items-center gap-2 cursor-pointer group">
+                  <input 
+                    type="radio"
+                    id="grpcPrivate"
+                    name="grpcServer" 
+                    value="private" 
+                    class="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                    onchange="window.handleGrpcServerChange('private')">
+                <span class="text-slate-200 group-hover:text-white transition-colors">
+                  Private <span class="text-slate-400 text-xs">(localhost:5555)</span>
+                </span>
+                </label>
+                
+                <label class="flex items-center gap-2 cursor-pointer group">
+                  <input 
+                    type="radio"
+                    id="grpcCustom"
+                    name="grpcServer" 
+                    value="custom" 
+                    class="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                    onchange="window.handleGrpcServerChange('custom')">
+                <span class="text-slate-200 group-hover:text-white transition-colors">Custom</span>
+                </label>
+                
+                <input 
+                  type="text" 
+                  id="customGrpcAddress"
+                  placeholder="host:port (e.g., 192.168.1.100:5555)"
+                  class="hidden bg-slate-700 text-slate-200 px-3 py-1.5 rounded border border-slate-600 focus:border-blue-500 focus:outline-none text-sm w-64"
+                  onchange="window.updateCustomGrpcServer()">
+              </div>
+              
+              <div id="grpcServerStatus" class="ml-auto flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                <span class="text-slate-300 text-sm">Connected</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div id="balanceContent">
           <!-- Balance Overview Card -->
           <div class="bg-white rounded-2xl shadow-xl border border-slate-200 mb-8 overflow-hidden">
@@ -272,41 +335,23 @@
         </div>
       </div>
 
-      <!-- All Addresses Modal -->
-      <div id="allAddressesModal" class="modal-overlay hidden">
-        <div class="modal-container max-w-3xl">
-          <!-- Close Button -->
-          <button id="closeAllAddressesModal" class="modal-close-btn">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-
-          <div class="modal-step">
-            <div class="modal-header">
-              <h2 class="modal-title">Master Addresses</h2>
-              <p class="modal-subtitle">All available addresses in your wallet</p>
-            </div>
-
-            <div class="modal-body">
-              <div id="addressesList" class="space-y-3">
-                <div class="text-center text-slate-500 py-8">
-                  <div class="loading-spinner-dark mx-auto mb-4"></div>
-                  <p>Loading addresses...</p>
-                </div>
-              </div>
-            </div>
-
-            <div class="modal-footer">
-              <button id="closeAllAddressesModalBtn" class="btn-secondary w-full">
-                Close
-              </button>
-            </div>
+      <!-- Addresses Modal -->
+      <div id="addressesModal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-slate-800">All Addresses</h2>
+            <button onclick="window.closeModal(document.getElementById('addressesModal'))" class="text-slate-400 hover:text-slate-600 text-2xl">
+              ×
+            </button>
+          </div>
+          <div id="addressesList" class="max-h-96 overflow-y-auto">
+            <!-- Addresses will be loaded here -->
           </div>
         </div>
       </div>
     </div>
 
-    <script type="module" src="./main.js"></script>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>

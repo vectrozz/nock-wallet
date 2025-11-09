@@ -9,5 +9,14 @@ export default defineConfig({
     watch: {
       usePolling: true  // Nécessaire pour le hot-reload dans Docker
     }
+  },
+  root: '.',
+  build: {
+    outDir: 'dist',
+    rollupOptions: {
+      input: {
+        main: './index.html'
+      }
+    }
   }
 })
