@@ -20,10 +20,14 @@ const successTxStep = document.getElementById('successTxStep')
 
 // Current transaction
 let currentTransaction = null
+let transactionWasSent = false  // ✅ NOUVEAU FLAG
 
 // Open send modal
 export function openSendModal() {
   console.log('💸 Opening send modal...')
+  
+  // ✅ Reset flag
+  transactionWasSent = false
   
   // Pre-fill amount if notes are selected
   if (selectedNotes.size > 0) {
@@ -172,6 +176,9 @@ export async function confirmTransactionHandler() {
     const sendResponse = await sendTransaction(currentTransaction.name)
     
     if (sendResponse.success) {
+      // ✅ MARQUER QUE LA TRANSACTION A ÉTÉ ENVOYÉE
+      transactionWasSent = true
+      
       showStep('success')
       showSuccessToast('Transaction sent successfully!')
       
@@ -244,10 +251,16 @@ export async function sendTransactionHandler(transactionName) {
 // Close modal
 function closeSendTxModalHandler() {
   closeModal(sendModal)
-  // Also reload balance to see if anything changed
-  setTimeout(() => {
-    updateBalance()
-  }, 500)
+  
+  // ✅ NE RECHARGER QUE SI UNE TRANSACTION A ÉTÉ ENVOYÉE
+  if (transactionWasSent) {
+    console.log('🔄 Transaction was sent, reloading balance...')
+    setTimeout(() => {
+      updateBalance()
+    }, 500)
+  } else {
+    console.log('ℹ️ No transaction sent, skipping balance reload')
+  }
 }
 
 // Attach event listeners when DOM is ready
