@@ -42,13 +42,6 @@ else:
 # Create folders if they don't exist
 os.makedirs(app.config['TX_FOLDER'], exist_ok=True)
 
-
-def remove_ansi_codes(text):
-    """Remove ANSI escape codes from text."""
-    # Pattern pour tous les codes ANSI
-    ansi_pattern = re.compile(r'\x1b\[[0-9;]*m')
-    return ansi_pattern.sub('', text)
-
 # ═══════════════════════════════════════════════════════════
 # CONFIG FILE MANAGEMENT
 # ═══════════════════════════════════════════════════════════
@@ -189,7 +182,7 @@ def get_wallet_balance():  # ← Plus de paramètre grpc_config
     try:
         # Build command with gRPC args from config
         cmd = WALLET_CMD_PREFIX.copy()
-        cmd.extend(get_grpc_args())
+        cmd.extend(get_grpc_args())  # ← Lit depuis le fichier config
         cmd.append("list-notes")
         
         logger.info(f"Executing command: {' '.join(cmd)}")
@@ -199,7 +192,7 @@ def get_wallet_balance():  # ← Plus de paramètre grpc_config
             cmd,
             capture_output=True,
             text=True,
-            check=False,
+            check=False,  # Don't raise exception on non-zero exit
             timeout=120,
             bufsize=-1
         )
@@ -215,6 +208,7 @@ def get_wallet_balance():  # ← Plus de paramètre grpc_config
             logger.error(f"STDOUT: {output}")
             logger.error(f"STDERR: {error_output}")
             
+            # Check if it's an RPC error
             full_output = output + "\n" + error_output
             is_rpc_error = "gRPC" in full_output or "service is currently unavailable" in full_output or "upstream request timeout" in full_output
             
@@ -232,17 +226,14 @@ def get_wallet_balance():  # ← Plus de paramètre grpc_config
         # Parse the output to extract notes
         notes = []
         
+        # Find the "Wallet Notes" section
         if "Wallet Notes" not in output:
             logger.warning("No 'Wallet Notes' section found in output")
             return {"notes": [], "notes_count": 0, "total_assets": 0}
         
-        # ✅ SIMPLE: Split par "Details" OU "Note Information"
-        wallet_notes_idx = output.find("Wallet Notes")
-        notes_text = output[wallet_notes_idx:]
-        
-        # Split en gardant le délimiteur
-        import re
-        sections = re.split(r'(?=^(?:Details|Note Information)$)', notes_text, flags=re.MULTILINE)
+        # Split by separator lines (50+ dashes or em-dashes)
+        # This works for both v0 and v1 as they both use separators
+        sections = re.split(r'[―\-]{50,}', output)
         
         logger.debug(f"Found {len(sections)} sections after split")
         
@@ -251,12 +242,12 @@ def get_wallet_balance():  # ← Plus de paramètre grpc_config
             section = section.strip()
             
             # Skip empty sections and header
-            if not section or "Wallet Notes" in section or len(section) < 50:
+            if not section or "Wallet Notes" in section:
                 continue
             
-            # Detect version
-            is_v1 = section.startswith("Note Information")
-            is_v0 = section.startswith("Details")
+            # Detect if this is a v0 or v1 note
+            is_v1 = "Note Information" in section
+            is_v0 = "Details" in section and "Lock" in section
             
             if not is_v0 and not is_v1:
                 continue
@@ -264,54 +255,100 @@ def get_wallet_balance():  # ← Plus de paramètre grpc_config
             note_number += 1
             
             try:
-                # Extract name
+                # Extract name (same format for both versions)
                 name_match = re.search(r'- Name:\s*\[(.*?)\]', section, re.DOTALL)
-                name = name_match.group(1).strip().replace('\n', ' ') if name_match else "Unknown"
+                if name_match:
+                    name = name_match.group(1).strip().replace('\n', ' ')
+                else:
+                    name = "Unknown"
                 
-                # Extract version
+                # Extract version (same format for both)
                 version_match = re.search(r'- Version:\s*(\d+)', section)
                 version = int(version_match.group(1)) if version_match else 0
                 
-                # Extract assets
+                # Extract assets - different labels for v0 and v1
                 if is_v1:
+                    # V1: "Assets (nicks):"
                     assets_match = re.search(r'- Assets \(nicks\):\s*(\d+)', section)
                 else:
+                    # V0: "Assets:"
                     assets_match = re.search(r'- Assets:\s*(\d+)', section)
+                
                 value = int(assets_match.group(1)) if assets_match else 0
                 
-                # Extract block height
-                block_match = re.search(r'- Block Height:\s*(\d+)', section)
-                block_height = int(block_match.group(1)) if block_match else 0
+                # Extract block height - MUST be done separately for each version
+                block_height = 0
+                if is_v1:
+                    # For v1, block height is in the same section as "Note Information"
+                    block_match = re.search(r'Note Information.*?- Block Height:\s*(\d+)', section, re.DOTALL)
+                    if block_match:
+                        block_height = int(block_match.group(1))
+                else:
+                    # For v0, block height is in the "Details" section
+                    block_match = re.search(r'Details.*?- Block Height:\s*(\d+)', section, re.DOTALL)
+                    if block_match:
+                        block_height = int(block_match.group(1))
                 
-                # Extract source (only v0)
+                # Extract source (only in v0)
                 source = None
                 if is_v0:
                     source_match = re.search(r'- Source:\s*(\S+)', section)
                     source = source_match.group(1) if source_match else "Unknown"
                 
-                # ✅ SIMPLE: Extract signer - juste chercher "Signers:" dans la section
+                # Extract signer - MUST be done separately for each version
                 signer = "Unknown"
                 
-                # Check for N/A first
-                if "Lock Information: N/A" in section or re.search(r'Lock Information:\s*N/A', section):
-                    signer = "N/A"
+                if is_v1:
+                    # V1: Check for N/A first
+                    if "Lock Information: N/A" in section:
+                        signer = "N/A"
+                    else:
+                        # V1: Look specifically in "Lock Information" section
+                        lock_info_match = re.search(r'- Lock Information:(.*?)(?:$)', section, re.DOTALL)
+                        if lock_info_match:
+                            lock_section = lock_info_match.group(1)
+                            
+                            # Try multiple patterns for v1 signers (ANSI codes are now removed)
+                            patterns = [
+                                r'- Signers:\s*\n\s*-\s*([A-Za-z0-9]{50,})',  # With dash and spaces
+                                r'- Signers:\s*\n\s*([A-Za-z0-9]{50,})',      # Without dash, just spaces
+                                r'Signers:\s*\n\s*-?\s*([A-Za-z0-9]{50,})',   # Optional dash
+                            ]
+                            
+                            for pattern in patterns:
+                                signer_match = re.search(pattern, lock_section)
+                                if signer_match:
+                                    signer = signer_match.group(1).strip()
+                                    logger.debug(f"V1 Signer found with pattern '{pattern}': {signer[:50]}...")
+                                    break
+                            
+                            if signer == "Unknown":
+                                logger.warning(f"V1 Signer not found. Lock section (cleaned): {repr(lock_section[:200])}")
                 else:
-                    # Trouver "Signers:" dans la section
-                    signers_idx = section.find('Signers:')
-                    if signers_idx != -1:
-                        # Prendre tout après "Signers:"
-                        after_signers = section[signers_idx + len('Signers:'):]
+                    # V0: Look specifically in "Lock" section
+                    # Use a more flexible pattern that doesn't require Lock to be at line start
+                    lock_match = re.search(r'Lock\s*\n(.*?)(?:\n\n|$)', section, re.DOTALL)
+                    if lock_match:
+                        lock_section = lock_match.group(1)
                         
-                        # Trouver la première adresse (50+ caractères alphanumériques)
-                        # On cherche sur les 500 premiers caractères pour éviter de déborder
-                        search_area = after_signers[:500]
-                        signer_match = re.search(r'([A-Za-z0-9]{50,})', search_area)
+                        # Try multiple patterns for v0 signers
+                        patterns = [
+                            r'- Signers:\s*\n\s*([A-Za-z0-9]{50,})',          # Standard format
+                            r'Signers:\s*\n\s*([A-Za-z0-9]{50,})',            # Without dash before Signers
+                            r'- Signers:\s*\n\s*-?\s*([A-Za-z0-9]{50,})',    # Optional dash before address
+                        ]
                         
-                        if signer_match:
-                            signer = signer_match.group(1).strip()
-                            logger.debug(f"Signer found in section: {signer[:50]}...")
-                        else:
-                            logger.warning(f"Signer not found after 'Signers:'. Search area: {repr(search_area[:200])}")
+                        for pattern in patterns:
+                            signer_match = re.search(pattern, lock_section)
+                            if signer_match:
+                                signer = signer_match.group(1).strip()
+                                logger.debug(f"V0 Signer found with pattern '{pattern}': {signer[:50]}...")
+                                break
+                        
+                        if signer == "Unknown":
+                            logger.warning(f"V0 Signer not found. Lock section: {repr(lock_section[:200])}")
+                    else:
+                        logger.warning(f"V0 Lock section not found. Section preview: {repr(section[:300])}")
                 
                 note = {
                     'number': note_number,
@@ -322,6 +359,7 @@ def get_wallet_balance():  # ← Plus de paramètre grpc_config
                     'signer': signer
                 }
                 
+                # Add source only for v0 notes
                 if source:
                     note['source'] = source
                 
@@ -1218,8 +1256,6 @@ def set_active_address():
     except Exception as e:
         logger.error("Error setting active address: %s", str(e))
         return jsonify({"success": False, "error": str(e)}), 500
-
-
 
 if __name__ == "__main__":
     host = os.getenv('FLASK_HOST', '0.0.0.0')
