@@ -13,7 +13,8 @@ import {
 import { 
   renderNotes, 
   toggleNoteDetails, 
-  handleNoteCheckboxChange 
+  handleNoteCheckboxChange,  // ✅ Déjà importé
+  updateSendSelectedButton   // ✅ AJOUTER
 } from './components/notes.js'
 
 import { 
@@ -26,7 +27,9 @@ import {
 import { 
   openSendModal, 
   createTransactionHandler, 
-  confirmTransactionHandler 
+  confirmTransactionHandler,
+  signTransactionHandler,
+  sendTransactionHandler
 } from './components/transactions.js'
 
 import { 
@@ -53,6 +56,8 @@ window.updateBalance = updateBalance
 window.openSendModal = openSendModal
 window.createTransactionHandler = createTransactionHandler
 window.confirmTransactionHandler = confirmTransactionHandler
+window.signTransactionHandler = signTransactionHandler
+window.sendTransactionHandler = sendTransactionHandler
 window.openImportModal = openImportModal
 window.importKeysHandler = importKeysHandler
 window.importFromFileHandler = importFromFileHandler
@@ -63,6 +68,8 @@ window.openHistoryModal = openHistoryModal
 window.handleGrpcServerChange = handleGrpcServerChange
 window.updateCustomGrpcServer = updateCustomGrpcServer
 window.closeModal = closeModal
+window.handleNoteCheckboxChange = handleNoteCheckboxChange  // ✅ AJOUTER
+window.toggleNoteDetails = toggleNoteDetails                // ✅ AJOUTER
 
 // Close modals on background click
 document.addEventListener('click', (e) => {
@@ -75,7 +82,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('DOMContentLoaded', async function() {
   console.log('🚀 Nockchain Wallet starting...')
   
-  // ✅ Initialize gRPC configuration FIRST (wait for it)
+  // Initialize gRPC configuration FIRST (wait for it)
   await initializeGrpcConfig()
   
   // Add event listeners for buttons
@@ -86,8 +93,6 @@ document.addEventListener('DOMContentLoaded', async function() {
       console.log('🔄 Refresh button clicked')
       updateBalance()
     })
-  } else {
-    console.warn('⚠️ updateBalanceBtn not found')
   }
   
   const sendSelectedBtn = document.getElementById('sendSelectedBtn')
@@ -97,8 +102,6 @@ document.addEventListener('DOMContentLoaded', async function() {
       console.log('💸 Send selected button clicked')
       openSendModal()
     })
-  } else {
-    console.warn('⚠️ sendSelectedBtn not found')
   }
   
   const sendTxBtn = document.getElementById('sendTxBtn')
@@ -108,8 +111,6 @@ document.addEventListener('DOMContentLoaded', async function() {
       console.log('💸 Send transaction button clicked')
       openSendModal()
     })
-  } else {
-    console.warn('⚠️ sendTxBtn not found')
   }
   
   const showAllAddressesBtn = document.getElementById('showAllAddressesBtn')
@@ -119,30 +120,6 @@ document.addEventListener('DOMContentLoaded', async function() {
       console.log('📋 Show all addresses button clicked')
       openAddressesModal()
     })
-  } else {
-    console.warn('⚠️ showAllAddressesBtn not found')
-  }
-  
-  const importKeysBtn = document.getElementById('importKeysBtn')
-  if (importKeysBtn) {
-    console.log('✅ Attaching click handler to importKeysBtn')
-    importKeysBtn.addEventListener('click', () => {
-      console.log('🔑 Import keys button clicked')
-      openImportModal()
-    })
-  } else {
-    console.warn('⚠️ importKeysBtn not found')
-  }
-  
-  const historyBtn = document.getElementById('historyBtn')
-  if (historyBtn) {
-    console.log('✅ Attaching click handler to historyBtn')
-    historyBtn.addEventListener('click', () => {
-      console.log('📜 History button clicked')
-      openHistoryModal()
-    })
-  } else {
-    console.warn('⚠️ historyBtn not found')
   }
   
   // Initial data load
