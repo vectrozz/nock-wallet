@@ -95,6 +95,34 @@ body {
   opacity: 0.8;
 }
 
+/* ✅ Note Row Styles - Selected State */
+.note-row {
+  @apply transition-all duration-200 cursor-pointer;
+}
+
+.note-row:hover {
+  @apply bg-slate-50;
+}
+
+.note-row.selected {
+  @apply bg-blue-50 border-l-4 border-blue-500;
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.1);
+}
+
+.note-row.selected:hover {
+  @apply bg-blue-100;
+}
+
+/* ✅ Note Details Panel - Highlight when open */
+.note-details-panel {
+  @apply transition-all duration-300;
+}
+
+.note-details-panel.active {
+  @apply bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
 /* Action Buttons */
 .action-btn {
   background: white;

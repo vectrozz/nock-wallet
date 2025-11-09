@@ -38,17 +38,39 @@ def parse_list_notes(output):
     wallet_notes_idx = output.find("Wallet Notes")
     notes_text = output[wallet_notes_idx:]
     
-    # Split by separator lines (50+ dashes or em-dashes)
-    sections = re.split(r'\n[―\-]{50,}\n', notes_text)
+    # ✅ ÉTAPE 1: Split par separator lines (50+ dashes or em-dashes)
+    big_sections = re.split(r'\n[―\-]{50,}\n', notes_text)
     
-    logger.debug(f"Found {len(sections)} sections after split")
+    # ✅ ÉTAPE 2: Pour chaque grande section, re-split par "Note Information" 
+    # pour séparer les notes V0 et V1 qui ne sont pas séparées par des tirets
+    all_sections = []
+    for big_section in big_sections:
+        # Si la section contient à la fois "Details" et "Note Information"
+        if "Details" in big_section and "Note Information" in big_section:
+            # Split en gardant "Note Information"
+            parts = re.split(r'(Note Information)', big_section)
+            
+            # Reconstruire : première partie (V0) + reste (V1)
+            v0_part = parts[0].strip()
+            if v0_part and len(v0_part) > 50:
+                all_sections.append(v0_part)
+            
+            # V1 part = "Note Information" + ce qui suit
+            if len(parts) >= 3:
+                v1_part = ("Note Information" + parts[2]).strip()
+                if v1_part and len(v1_part) > 50:
+                    all_sections.append(v1_part)
+        else:
+            # Section normale, garder telle quelle
+            if big_section.strip() and len(big_section.strip()) > 50:
+                all_sections.append(big_section.strip())
+    
+    logger.debug(f"Found {len(all_sections)} note sections after splitting")
     
     note_number = 0
-    for i, section in enumerate(sections):
-        section = section.strip()
-        
-        # Skip empty sections and header
-        if not section or "Wallet Notes" in section or len(section) < 50:
+    for i, section in enumerate(all_sections):
+        # Skip header
+        if "Wallet Notes" in section:
             continue
         
         # Detect version by checking what's in the section
@@ -76,7 +98,7 @@ def parse_list_notes(output):
                 assets_match = re.search(r'- Assets:\s*(\d+)', section)
             value = int(assets_match.group(1)) if assets_match else 0
             
-            # ✅ Extract block height - CHERCHER APRÈS le marqueur de début de note
+            # Extract block height - CHERCHER APRÈS le marqueur de début de note
             block_height = 0
             if is_v1:
                 # Pour V1: chercher après "Note Information"
@@ -105,18 +127,34 @@ def parse_list_notes(output):
                 source_match = re.search(r'- Source:\s*(\S+)', section)
                 source = source_match.group(1) if source_match else "Unknown"
             
-            # Extract signer
+            # ✅ Extract signer - CHERCHER DANS LA BONNE PARTIE DE LA SECTION
             signer = "Unknown"
             
             # Check for N/A first
             if "Lock Information: N/A" in section or re.search(r'Lock Information:\s*N/A', section):
                 signer = "N/A"
             else:
-                # Find "Signers:" in the section
-                signers_idx = section.find('Signers:')
+                # ✅ Pour V1: chercher après "Lock Information:"
+                # ✅ Pour V0: chercher après "Lock" (pas "Lock Information")
+                if is_v1:
+                    lock_info_idx = section.find('Lock Information:')
+                    if lock_info_idx != -1:
+                        after_lock = section[lock_info_idx:]
+                    else:
+                        after_lock = section
+                else:
+                    # V0: chercher après "Lock\n" (avec retour à la ligne)
+                    lock_idx = section.find('Lock\n')
+                    if lock_idx != -1:
+                        after_lock = section[lock_idx:]
+                    else:
+                        after_lock = section
+                
+                # Find "Signers:" in the relevant part
+                signers_idx = after_lock.find('Signers:')
                 if signers_idx != -1:
                     # Take everything after "Signers:"
-                    after_signers = section[signers_idx + len('Signers:'):]
+                    after_signers = after_lock[signers_idx + len('Signers:'):]
                     
                     # Find the first address (50+ alphanumeric characters)
                     search_area = after_signers[:500]
