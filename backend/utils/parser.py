@@ -76,9 +76,28 @@ def parse_list_notes(output):
                 assets_match = re.search(r'- Assets:\s*(\d+)', section)
             value = int(assets_match.group(1)) if assets_match else 0
             
-            # Extract block height
-            block_match = re.search(r'- Block Height:\s*(\d+)', section)
-            block_height = int(block_match.group(1)) if block_match else 0
+            # ✅ Extract block height - CHERCHER APRÈS le marqueur de début de note
+            block_height = 0
+            if is_v1:
+                # Pour V1: chercher après "Note Information"
+                note_info_idx = section.find('Note Information')
+                if note_info_idx != -1:
+                    after_note_info = section[note_info_idx:]
+                    block_match = re.search(r'- Block Height:\s*(\d+)', after_note_info)
+                    if block_match:
+                        block_height = int(block_match.group(1))
+                    else:
+                        logger.warning(f"V1 Block height not found after 'Note Information' in note {note_number}")
+            else:
+                # Pour V0: chercher après "Details"
+                details_idx = section.find('Details')
+                if details_idx != -1:
+                    after_details = section[details_idx:]
+                    block_match = re.search(r'- Block Height:\s*(\d+)', after_details)
+                    if block_match:
+                        block_height = int(block_match.group(1))
+                    else:
+                        logger.warning(f"V0 Block height not found after 'Details' in note {note_number}")
             
             # Extract source (only v0)
             source = None

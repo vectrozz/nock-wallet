@@ -20,30 +20,43 @@ const successTxStep = document.getElementById('successTxStep')
 
 // Current transaction
 let currentTransaction = null
-let transactionWasSent = false  // ✅ NOUVEAU FLAG
+let transactionWasSent = false
 
 // Open send modal
 export function openSendModal() {
   console.log('💸 Opening send modal...')
   
-  // ✅ Reset flag
+  // Reset flag
   transactionWasSent = false
   
-  // Pre-fill amount if notes are selected
+  // ✅ Pre-fill and lock amount if notes are selected
   if (selectedNotes.size > 0) {
     const totalSelected = Array.from(selectedNotes).reduce((sum, index) => {
       return sum + allNotes[index].value
     }, 0)
+    
     if (amountInput) {
-      // Convert nick to nock (divide by 10000)
-      const nockAmount = totalSelected / 10000
+      // Convert nick to nock (divide by 65536)
+      const nockAmount = totalSelected / 65536
       amountInput.value = nockAmount.toFixed(4)
+      
+      // ✅ Lock the input (make it readonly)
+      amountInput.readOnly = true
+      amountInput.classList.add('bg-gray-100', 'cursor-not-allowed')
+      
+      console.log(`📊 Selected ${selectedNotes.size} notes, total: ${totalSelected} nick (${nockAmount.toFixed(4)} nock)`)
+    }
+  } else {
+    // ✅ Unlock the input if no notes selected
+    if (amountInput) {
+      amountInput.value = ''
+      amountInput.readOnly = false
+      amountInput.classList.remove('bg-gray-100', 'cursor-not-allowed')
     }
   }
   
   // Reset form
   if (recipientInput) recipientInput.value = ''
-  if (!selectedNotes.size && amountInput) amountInput.value = ''
   if (feeInput) feeInput.value = '10'
   
   // Reset to first step
@@ -90,8 +103,8 @@ export async function createTransactionHandler() {
     return
   }
   
-  // Convert nock to nick (multiply by 10000)
-  const amountNick = Math.floor(amountNock * 10000)
+  // Convert nock to nick (multiply by 65536)
+  const amountNick = Math.floor(amountNock * 65536)
   
   showStep('processing')
   
@@ -106,6 +119,7 @@ export async function createTransactionHandler() {
     // Add note indices if specific notes are selected
     if (selectedNotes.size > 0) {
       txData.note_indices = Array.from(selectedNotes)
+      console.log(`📝 Using ${selectedNotes.size} selected notes:`, Array.from(selectedNotes))
     }
     
     console.log('📝 Creating transaction:', txData)
@@ -176,7 +190,6 @@ export async function confirmTransactionHandler() {
     const sendResponse = await sendTransaction(currentTransaction.name)
     
     if (sendResponse.success) {
-      // ✅ MARQUER QUE LA TRANSACTION A ÉTÉ ENVOYÉE
       transactionWasSent = true
       
       showStep('success')
@@ -200,7 +213,7 @@ export async function confirmTransactionHandler() {
   }
 }
 
-// ✅ EXPORTER pour history.js
+// Export for history.js
 export async function signTransactionHandler(transactionName) {
   console.log('✍️ Signing transaction:', transactionName)
   
@@ -221,7 +234,7 @@ export async function signTransactionHandler(transactionName) {
   }
 }
 
-// ✅ EXPORTER pour history.js
+// Export for history.js
 export async function sendTransactionHandler(transactionName) {
   console.log('📤 Sending transaction:', transactionName)
   
@@ -252,7 +265,7 @@ export async function sendTransactionHandler(transactionName) {
 function closeSendTxModalHandler() {
   closeModal(sendModal)
   
-  // ✅ NE RECHARGER QUE SI UNE TRANSACTION A ÉTÉ ENVOYÉE
+  // Only reload if transaction was sent
   if (transactionWasSent) {
     console.log('🔄 Transaction was sent, reloading balance...')
     setTimeout(() => {
