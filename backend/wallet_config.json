@@ -1,6 +1,6 @@
 {
   "grpc": {
-    "type": "private",
+    "type": "public",
     "customAddress": ""
   }
 }

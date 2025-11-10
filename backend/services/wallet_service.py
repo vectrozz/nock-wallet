@@ -316,8 +316,8 @@ def set_active_address_service(address):
         #logger.info("Forcing wallet synchronization after address change...")
         #sync_result = sync_wallet()
         
-        if not sync_result.get('success'):
-            logger.warning("Sync after address change failed, but continuing...")
+        #if not sync_result.get('success'):
+        #    logger.warning("Sync after address change failed, but continuing...")
         
         # Get updated balance for the new active address
         logger.info("Getting balance for new active address...")

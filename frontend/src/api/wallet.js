@@ -105,8 +105,18 @@ export async function importFromSeedphrase(seedphrase, version) {
 
 // Show seedphrase
 export async function showSeedphrase() {
-  const response = await fetch(`${API_BASE}/api/show-seedphrase`)
-  return response.json()
+  const response = await fetch(`${API_BASE}/api/show-seedphrase`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  })
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+  
+  return await response.json()
 }
 
 // Export keys URL

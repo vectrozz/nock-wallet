@@ -165,18 +165,30 @@ def register_routes(app):
         try:
             data = request.json
             
+            logger.info(f"📥 Received transaction request: {data}")
+            
             # Validate required fields
             if not data.get('recipient'):
-                return jsonify({"error": "Recipient public key is required."}), 400
+                return jsonify({"success": False, "error": "Recipient public key is required."}), 400
             if not data.get('amount_nock'):
-                return jsonify({"error": "Amount is required."}), 400
+                return jsonify({"success": False, "error": "Amount is required."}), 400
             
             recipient = data['recipient']
-            amount_nock = data['amount_nock']
-            fee_nick = data.get('fee', 10)
-            selected_notes = data.get('selected_notes')
-            use_all_funds = data.get('use_all_funds', selected_notes is not None)
+            amount_nock = float(data['amount_nock'])
+            fee_nick = int(data.get('fee', 10))
+            selected_notes = data.get('selected_notes')  # ← Liste des NOMS de notes
+            use_all_funds = data.get('use_all_funds', False)
             
+            logger.info(f"📋 Transaction params:")
+            logger.info(f"  - Recipient: {recipient[:50]}...")
+            logger.info(f"  - Amount: {amount_nock} NOCK")
+            logger.info(f"  - Fee: {fee_nick} NICK")
+            logger.info(f"  - Selected notes: {len(selected_notes) if selected_notes else 0}")
+            logger.info(f"  - Use all funds: {use_all_funds}")
+            
+            if selected_notes:
+                logger.info(f"  - First note name: {selected_notes[0][:50]}...")
+        
             result = create_transaction(
                 recipient=recipient,
                 amount_nock=amount_nock,
@@ -186,13 +198,17 @@ def register_routes(app):
             )
             
             if not result.get('success'):
+                logger.error(f"❌ Transaction creation failed: {result.get('error')}")
                 return jsonify(result), 500
             
+            logger.info(f"✅ Transaction created: {result.get('transaction_name')}")
             return jsonify(result)
-            
+        
         except Exception as e:
             logger.error(f"Error in create_tx endpoint: {str(e)}")
-            return jsonify({"error": str(e)}), 500
+            import traceback
+            logger.error(traceback.format_exc())
+            return jsonify({"success": False, "error": str(e)}), 500
 
 
     @app.route('/api/show-transaction', methods=['POST'])

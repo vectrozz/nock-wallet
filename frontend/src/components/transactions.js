@@ -89,76 +89,96 @@ function showStep(step) {
 
 // Create transaction
 export async function createTransactionHandler() {
-  const recipient = recipientInput?.value.trim()
-  const amountNock = parseFloat(amountInput?.value || 0)
-  const fee = parseInt(feeInput?.value || 10)
+  const recipientInput = document.getElementById('recipientInput') 
+  const amountInput = document.getElementById('amountInput')         
+  const feeInput = document.getElementById('feeInput')            
+  
+  if (!recipientInput || !amountInput || !feeInput) {
+    console.error('❌ Missing input elements')
+    return
+  }
+  
+  const recipient = recipientInput.value.trim()
+  const amount = parseFloat(amountInput.value)
+  const fee = parseInt(feeInput.value) || 10
   
   if (!recipient) {
-    alert('⚠️ Please enter a recipient address')
+    alert('Please enter a recipient address')
     return
   }
   
-  if (!amountNock || amountNock <= 0) {
-    alert('⚠️ Please enter a valid amount')
+  if (!amount || amount <= 0) {
+    alert('Please enter a valid amount')
     return
   }
   
-  // Convert nock to nick (multiply by 65536)
-  const amountNick = Math.floor(amountNock * 65536)
+  // Get selected notes with their FULL NAMES
+  const selectedNotesArray = Array.from(selectedNotes)
   
-  showStep('processing')
+  if (selectedNotesArray.length === 0) {
+    alert('Please select at least one note')
+    return
+  }
+  
+  console.log('📝 Selected note indices:', selectedNotes)
+  
+  // ✅ Extract the FULL NOTE NAMES from the notes
+  const selectedNoteNames = selectedNotesArray.map(noteIndex => {
+    const note = allNotes[noteIndex]
+    if (!note || !note.name) {
+      console.error('❌ Could not find note at index', noteIndex)
+      return null
+    }
+    console.log(`✅ Note ${noteIndex}: ${note.name.substring(0, 50)}...`)
+    return note.name  // ← Le nom COMPLET de la note
+  }).filter(name => name !== null)
+  
+  if (selectedNoteNames.length !== selectedNotesArray.length) {
+    alert('Error: Could not retrieve all note names')
+    return
+  }
+  
+  console.log('📝 Creating transaction with:')
+  console.log('  - Recipient:', recipient.substring(0, 30) + '...')
+  console.log('  - Amount:', amount, 'NOCK')
+  console.log('  - Fee:', fee, 'NICK')
+  console.log('  - Notes count:', selectedNoteNames.length)
+  
+  const txData = {
+    recipient: recipient,
+    amount_nock: amount,
+    fee: fee,
+    selected_notes: selectedNoteNames,
+    use_all_funds: true
+  }
+  
+  console.log('📝 Transaction data:', {
+    ...txData,
+    selected_notes: txData.selected_notes.map(n => n.substring(0, 30) + '...')
+  })
   
   try {
-    // Prepare transaction data
-    const txData = {
-      recipient: recipient,
-      amount: amountNick,
-      fee: fee
-    }
+    const result = await createTransaction(txData)
     
-    // Add note indices if specific notes are selected
-    if (selectedNotes.size > 0) {
-      txData.note_indices = Array.from(selectedNotes)
-      console.log(`📝 Using ${selectedNotes.size} selected notes:`, Array.from(selectedNotes))
-    }
-    
-    console.log('📝 Creating transaction:', txData)
-    
-    const response = await createTransaction(txData)
-    
-    if (response.success) {
-      currentTransaction = {
-        name: response.transaction_name,
-        hash: response.transaction_hash,
-        recipient: recipient,
-        amount: amountNick,
-        fee: fee
-      }
+    if (result.success) {
+      alert(`Transaction created successfully!\nTransaction: ${result.transaction_name}`)
       
-      // Show confirmation step with details
-      const txDetailsElem = document.getElementById('txDetails')
-      if (txDetailsElem) {
-        txDetailsElem.textContent = `
-Recipient: ${recipient}
-Amount: ${amountNock.toFixed(4)} nock (${amountNick.toLocaleString()} nick)
-Fee: ${fee} nick
-Transaction: ${response.transaction_name}
-Hash: ${response.transaction_hash}
-        `.trim()
-      }
+      // Clear selections
+      window.selectedNotes = []
+      document.querySelectorAll('.note-checkbox').forEach(cb => cb.checked = false)
+      updateAmountFromSelection()
       
-      showStep('confirm')
-      showSuccessToast('Transaction created successfully!')
+      // Close modal
+      //document.getElementById('sendTxModal').classList.add('hidden')
       
-      console.log('✅ Transaction created:', response)
+      // Refresh balance
+      await updateBalance()
     } else {
-      showStep('create')
-      showErrorToast(response.error || 'Failed to create transaction')
+      alert(`Failed to create transaction: ${result.error}`)
     }
   } catch (error) {
     console.error('❌ Error creating transaction:', error)
-    showStep('create')
-    showErrorToast(error.message || 'Network error')
+    alert(`Error: ${error.message}`)
   }
 }
 

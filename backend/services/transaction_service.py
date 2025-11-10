@@ -148,18 +148,35 @@ def create_transaction(recipient, amount_nock, fee_nick=10, selected_note_names=
         old_tx_files = get_tx_files_in_folder()
         logger.info(f"Existing transaction files before creation: {len(old_tx_files)}")
         
+        # OOOLLLLDDDDD DEPRECATED Build command with gRPC args from config
+        cmd_old = WALLET_CMD_PREFIX.copy()
+        cmd_old.extend(get_grpc_args())
+        cmd_old.extend([
+            "create-tx",
+            "--names", names_string,
+            "--recipient", f"[1 {recipient}]",
+            "--gifts", str(amount_nick),
+            "--fee", str(fee_nick)
+        ])
+        
+        #logger.info("Creating transaction...")
+
+
+        # ✅ NEW COMMAND FORMAT
         # Build command with gRPC args from config
         cmd = WALLET_CMD_PREFIX.copy()
         cmd.extend(get_grpc_args())
         cmd.extend([
             "create-tx",
-            "--names", names_string,
-            "--recipients", f"[1 {recipient}]",
-            "--gifts", str(amount_nick),
-            "--fee", str(fee_nick)
+            "--names", names_string,  # Format: "[first1 last1],[first2 last2]"
+            "--recipient", f"{recipient}:{amount_nick}",  # ← NEW FORMAT: <pkh-b58>:<amount>
+            "--fee", str(fee_nick),
+            "--refund-pkh", f"{recipient}"  # Note: n'est PAS nécessaire pour les notes v1
         ])
         
-        logger.info("Creating transaction...")
+        logger.info("Creating transaction with NEW command format...")
+        logger.info(f"Command: {' '.join(cmd[:3])} create-tx --names '[...]' --recipient '{recipient[:30]}...:{amount_nick}' --fee {fee_nick}")
+        
         
         result = subprocess.run(
             cmd,

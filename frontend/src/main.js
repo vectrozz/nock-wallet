@@ -53,7 +53,7 @@ import {
   showErrorToast 
 } from './ui/toast.js'
 
-import { importKeys, importFromSeedphrase } from './api/wallet.js'
+import { importKeys, importFromSeedphrase, showSeedphrase } from './api/wallet.js'
 import { saveGrpcConfig } from './api/config.js' // ✅ Importer depuis config.js
 
 console.log('📦 Main.js loaded')
@@ -118,6 +118,40 @@ async function importKeysFromSeedphrase() {
       importSeedphraseBtn.disabled = false
       importSeedphraseBtn.innerHTML = '<span class="btn-icon">🚀</span><span>Import from Seedphrase</span>'
     }
+  }
+}
+
+// Show seedphrase function
+window.showSeedphrase = async function() {
+  console.log('🌱 Showing seedphrase...')
+  
+  try {
+    const result = await showSeedphrase()
+    
+    if (result.success) {
+      const seedphrase = result.seedphrase || result.raw_output
+      
+      // Show in modal or alert
+      const modal = document.getElementById('seedphraseModal')
+      const seedphraseText = document.getElementById('seedphraseText')
+      
+      if (modal && seedphraseText) {
+        seedphraseText.textContent = seedphrase
+        modal.style.display = 'block'
+      } else {
+        // Fallback to alert if modal doesn't exist
+        alert(`Your seed phrase:\n\n${seedphrase}\n\n⚠️ Keep this safe and private!`)
+      }
+      
+      console.log('✅ Seedphrase displayed')
+    } else {
+      console.error('❌ Failed to retrieve seedphrase:', result.error)
+      alert('Failed to retrieve seedphrase: ' + result.error)
+    }
+    
+  } catch (error) {
+    console.error('❌ Error showing seedphrase:', error)
+    alert('Error showing seedphrase: ' + error.message)
   }
 }
 
